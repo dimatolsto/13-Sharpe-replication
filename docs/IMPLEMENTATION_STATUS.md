@@ -6,11 +6,16 @@
 - P0-P5 experiment manifests.
 - Deterministic signal engine.
 - Explicit daily-data timing alignment (`lag=1` forensic, `lag=2` corrected).
-- Point-in-time membership filtering.
+- Point-in-time signal architecture: time-series features use each security's full available history,
+  then cross-sectional ranks/z-scores and portfolio eligibility use membership on the signal date.
 - Separate `raw_close` vs `total_return` data contract.
 - Long/short portfolio constructor and linear transaction costs.
 - Independent accounting reconciliation audit.
-- Sharpe/CAGR/volatility/drawdown/yearly metrics and block-bootstrap Sharpe CI.
+- Sharpe/CAGR/volatility/drawdown/yearly metrics and block-bootstrap Sharpe CI; maximum drawdown is
+  measured relative to initial wealth `1.0` before the first return.
+- Strict YAML configuration validation for strategy, assumptions, and P0-P5 experiments.
+- Paper walk-forward scaling for P0-P3 with explicit train/test windows, preserving unscaled results
+  as the authoritative audit trail and writing scaled outputs separately when requested.
 - WiseSheets capability gate without embedding undocumented endpoint semantics.
 - Optional OpenAI Agents SDK supervisor + methodology auditor + red-team agents.
 - Synthetic unit tests and GitHub Actions workflow.
@@ -38,10 +43,9 @@
 
 ## Known implementation gaps
 
-- `paper_scaling: true` is specified but not yet applied by `run_backtest`; unscaled results are the
-  current deterministic core. The scaling layer will be added only after the unscaled path and exact
-  training-window interpretation are verified.
 - P0-P3 exact OOS dates are interpreted as calendar years 2010, 2015, 2020; this remains an explicit
   paper ambiguity pending author code/data.
+- P4 and P5 are unscaled by default. No rolling 5-year/1-year scaling extension is enabled or
+  described as paper scaling.
 - WiseSheets API calls are intentionally not implemented until the endpoint/schema is verified from
   authoritative account documentation. No API key is stored in the repository.

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-
 PANEL_REQUIRED = {"date", "security_id", "ticker", "raw_close", "total_return"}
 MEMBERSHIP_REQUIRED = {"security_id", "membership_start", "membership_end"}
 
@@ -43,16 +42,34 @@ def normalize_membership(membership: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def apply_point_in_time_eligibility(
+    panel: pd.DataFrame,
+    membership: pd.DataFrame,
+    eligible_column: str = "eligible",
+) -> pd.DataFrame:
+    """Add a point-in-time membership flag without dropping historical rows.
+
+    Membership end is inclusive. Multiple spells are supported. The returned frame preserves all
+    panel rows so per-security rolling features can use publicly available pre-membership history.
+    """
+    out = normalize_panel(panel)
+    membership = normalize_membership(membership)
+    keyed = out[["date", "security_id"]].reset_index(names="_row")
+    merged = keyed.merge(membership, on="security_id", how="left", validate="many_to_many")
+    active = (merged["date"] >= merged["membership_start"]) & (
+        merged["membership_end"].isna() | (merged["date"] <= merged["membership_end"])
+    )
+    eligible_rows = merged.loc[active, "_row"].drop_duplicates()
+    out[eligible_column] = False
+    out.loc[eligible_rows, eligible_column] = True
+    return out
+
+
 def apply_point_in_time_membership(panel: pd.DataFrame, membership: pd.DataFrame) -> pd.DataFrame:
     """Filter panel to dates on which each security was actually an index member.
 
     Membership end is inclusive. Multiple spells are supported.
     """
-    panel = normalize_panel(panel)
-    membership = normalize_membership(membership)
-    merged = panel.merge(membership, on="security_id", how="inner", validate="many_to_many")
-    active = (merged["date"] >= merged["membership_start"]) & (
-        merged["membership_end"].isna() | (merged["date"] <= merged["membership_end"])
-    )
-    out = merged.loc[active, panel.columns].drop_duplicates(["date", "security_id"])
+    eligible = apply_point_in_time_eligibility(panel, membership)
+    out = eligible.loc[eligible["eligible"], [c for c in eligible.columns if c != "eligible"]]
     return out.sort_values(["security_id", "date"]).reset_index(drop=True)
