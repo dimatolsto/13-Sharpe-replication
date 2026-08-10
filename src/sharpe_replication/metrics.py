@@ -9,10 +9,16 @@ TRADING_DAYS = 252
 
 
 def max_drawdown(returns: pd.Series) -> float:
-    wealth = (1.0 + returns.fillna(0.0)).cumprod()
+    r = returns.fillna(0.0).astype(float)
+    if len(r) == 0:
+        return float("nan")
+    wealth = pd.concat(
+        [pd.Series([1.0], index=[-1], dtype=float), (1.0 + r).cumprod()],
+        ignore_index=True,
+    )
     peak = wealth.cummax()
     dd = wealth / peak - 1.0
-    return float(dd.min()) if len(dd) else float("nan")
+    return float(dd.min())
 
 
 def performance_metrics(returns: pd.Series, risk_free_rate: float = 0.0) -> dict[str, float]:
@@ -34,13 +40,32 @@ def performance_metrics(returns: pd.Series, risk_free_rate: float = 0.0) -> dict
     }
 
 
-def paper_scale(training_returns: pd.Series, vol_target: float, max_dd_target: float) -> float:
+def paper_scale_details(
+    training_returns: pd.Series,
+    vol_target: float,
+    max_dd_target: float,
+) -> dict[str, float]:
     metrics = performance_metrics(training_returns)
     vol = metrics["ann_vol"]
-    dd = abs(metrics["max_drawdown"])
-    if not np.isfinite(vol) or vol <= 0 or not np.isfinite(dd) or dd <= 0:
-        return 1.0
-    return float(min(vol_target / vol, max_dd_target / dd))
+    max_dd = metrics["max_drawdown"]
+    dd_abs = abs(max_dd)
+    if not np.isfinite(vol) or vol <= 0:
+        raise ValueError("Cannot compute paper scaling with zero or invalid training volatility")
+    if not np.isfinite(dd_abs) or dd_abs <= 0:
+        raise ValueError("Cannot compute paper scaling with zero or invalid training max drawdown")
+    volatility_scale = vol_target / vol
+    drawdown_scale = max_dd_target / dd_abs
+    return {
+        "training_annualized_volatility": float(vol),
+        "training_max_drawdown": float(max_dd),
+        "volatility_scale": float(volatility_scale),
+        "drawdown_scale": float(drawdown_scale),
+        "scale_factor": float(min(volatility_scale, drawdown_scale)),
+    }
+
+
+def paper_scale(training_returns: pd.Series, vol_target: float, max_dd_target: float) -> float:
+    return paper_scale_details(training_returns, vol_target, max_dd_target)["scale_factor"]
 
 
 def yearly_metrics(daily: pd.DataFrame, return_col: str = "net_return") -> pd.DataFrame:

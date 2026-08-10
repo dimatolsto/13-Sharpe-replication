@@ -49,6 +49,11 @@ uv run drift-replication run --experiment experiments/P4_continuous_oos.yaml \
   --membership /path/to/membership.parquet
 ```
 
+Run summaries keep the deterministic unscaled audit trail at the legacy top-level fields and under
+`unscaled`. Experiments that explicitly request paper walk-forward scaling also include `scaled` and
+`scaling_windows`; scaled daily/ledger/yearly files are written with a `_scaled_` filename suffix.
+P4 and P5 are unscaled by default.
+
 ## Data contract
 
 The normalized daily panel must contain:
@@ -67,6 +72,10 @@ Point-in-time membership must contain:
 - `membership_end` (nullable = still active)
 
 See `data/README.md` for details.
+
+For point-in-time experiments, rolling time-series features are computed from all available history
+for each security. Membership is then applied as a signal-date eligibility mask before any
+cross-sectional rank, z-score, EDGE standardization, or portfolio weight is calculated.
 
 ## WiseSheets
 

@@ -9,5 +9,7 @@ raw_signal_price_required: true
 point_in_time_membership_required: true
 transaction_cost_bp: 0.60
 paper_scaling: false
+scaling:
+  mode: none
 certified: true
 primary_forward_result: true

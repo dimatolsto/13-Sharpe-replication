@@ -2,9 +2,31 @@ id: P3
 name: add_point_in_time_universe
 universe_mode: point_in_time
 period_mode: paper_three_windows
+paper_test_windows:
+  - start: 2010-01-01
+    end: 2010-12-31
+  - start: 2015-01-01
+    end: 2015-12-31
+  - start: 2020-01-01
+    end: 2020-12-31
 return_lag_sessions: 2
 raw_signal_price_required: true
 point_in_time_membership_required: true
 transaction_cost_bp: 0.60
 paper_scaling: true
+scaling:
+  mode: paper_walk_forward
+  windows:
+    - train_start: 2005-01-01
+      train_end: 2010-01-01
+      test_start: 2010-01-01
+      test_end: 2011-01-01
+    - train_start: 2010-01-01
+      train_end: 2015-01-01
+      test_start: 2015-01-01
+      test_end: 2016-01-01
+    - train_start: 2015-01-01
+      train_end: 2020-01-01
+      test_start: 2020-01-01
+      test_end: 2021-01-01
 certified: true

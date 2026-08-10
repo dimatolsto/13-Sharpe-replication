@@ -13,10 +13,14 @@ def construct_signal_weights(signals: pd.DataFrame, cfg: StrategyConfig) -> pd.D
     if missing:
         raise ValueError(f"Signals missing columns: {sorted(missing)}")
 
-    df = signals[["date", "security_id", "z_edge"]].copy()
+    if "eligible" in signals.columns:
+        source = signals.loc[signals["eligible"].fillna(False).astype(bool)]
+    else:
+        source = signals
+    df = source[["date", "security_id", "z_edge"]].copy()
     df["signal_weight"] = 0.0
 
-    for date, idx in df.groupby("date").groups.items():
+    for idx in df.groupby("date").groups.values():
         block = df.loc[idx]
         long_idx = block.index[block["z_edge"] > 0]
         short_idx = block.index[block["z_edge"] < 0]

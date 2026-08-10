@@ -13,7 +13,11 @@ The implementation must not silently resolve these items.
    weights proportional to `abs(z_edge)` within each side. Equal-weight is retained as a diagnostic
    variant but is not the primary specification.
 6. **Training-derived scaling.** The paper's scale formula is allowed to exceed 1.0. The replication
-   preserves that behavior in the paper-scaled variant, while always reporting unscaled Sharpe too.
+   preserves that behavior in the paper-scaled P0-P3 variants, while always reporting unscaled Sharpe
+   too. The explicit train/test mappings are encoded in experiment YAML as half-open intervals:
+   `[2005-01-01, 2010-01-01) -> [2010-01-01, 2011-01-01)`,
+   `[2010-01-01, 2015-01-01) -> [2015-01-01, 2016-01-01)`, and
+   `[2015-01-01, 2020-01-01) -> [2020-01-01, 2021-01-01)`.
 7. **Transaction-cost turnover convention.** We define one-way turnover as
    `0.5 * sum(abs(w_t - w_{t-1}))`; a cost of `x` bp per unit turnover means
    `turnover * x * 1e-4` deducted from portfolio return.
@@ -24,3 +28,6 @@ The implementation must not silently resolve these items.
    one-year intervals `[2010, 2011)`, `[2015, 2016)`, and `[2020, 2021)`, i.e. calendar years
    2010, 2015, and 2020. This interpretation is explicitly tagged and must be changed only if author
    code/data establishes different exact dates.
+10. **Continuous scaling extension.** P4 is the primary continuous historical-clean result and P5 is
+    the forward result; both are unscaled by default. Any future rolling 5-year/1-year scaling variant
+    must be labeled as an extension, not as the paper's scaling rule.
