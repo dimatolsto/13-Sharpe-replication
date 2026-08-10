@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import asdict
 
-from .base import ProviderCapabilities
+from .base import CapabilityStatus, ProviderCapabilities
 
 
 class WiseSheetsCapabilityGate:
@@ -21,17 +20,19 @@ class WiseSheetsCapabilityGate:
 
     def provisional_capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
-            historical_raw_close=False,
-            adjusted_close=True,
-            dividends=True,
-            splits=False,
-            delisted_securities=False,
-            point_in_time_index_membership=False,
-            stable_security_ids=False,
+            historical_raw_close=CapabilityStatus.UNVERIFIED,
+            adjusted_close=CapabilityStatus.UNVERIFIED,
+            dividends=CapabilityStatus.UNVERIFIED,
+            splits=CapabilityStatus.UNVERIFIED,
+            delisted_securities=CapabilityStatus.UNVERIFIED,
+            ticker_history=CapabilityStatus.UNVERIFIED,
+            point_in_time_index_membership=CapabilityStatus.UNSUPPORTED,
+            stable_security_ids=CapabilityStatus.UNVERIFIED,
             verified=False,
             notes=(
-                "Provisional only. Raw nominal close, split events, delisted coverage, stable IDs, "
-                "and PIT membership must be independently verified."
+                "Not configured for acquisition. No authoritative WiseSheets endpoint/schema is "
+                "encoded; raw nominal close, adjusted close, dividends, split events, delisted "
+                "coverage, ticker history, and stable IDs must be verified from account/API docs."
             ),
         )
 
@@ -39,5 +40,6 @@ class WiseSheetsCapabilityGate:
         return {
             "api_key_present": self.api_key_present,
             "base_url_configured": bool(self.base_url),
-            "capabilities": asdict(self.provisional_capabilities()),
+            "network_adapter": "not_configured",
+            "capabilities": self.provisional_capabilities().as_dict(),
         }
