@@ -1,0 +1,13 @@
+id: P4
+name: continuous_historical_clean
+universe_mode: point_in_time
+period_mode: continuous
+start_date: 2009-01-01
+end_date: 2024-12-31
+return_lag_sessions: 2
+raw_signal_price_required: true
+point_in_time_membership_required: true
+transaction_cost_bp: 0.60
+paper_scaling: true
+certified: true
+primary_historical_result: true

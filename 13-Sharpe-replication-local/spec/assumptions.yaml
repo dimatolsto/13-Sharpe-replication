@@ -1,0 +1,15 @@
+version: 1
+hard_requirements:
+  daily_data_only: true
+  no_same_close_earnings_in_corrected_runs: true
+  point_in_time_membership_for_P3_plus: true
+  raw_nominal_close_for_value_signal: true
+  corporate_action_correct_return_for_pnl: true
+  stable_security_identifier_required: true
+  no_parameter_optimization: true
+certification:
+  fail_if_raw_close_semantics_unverified: true
+  fail_if_membership_source_not_point_in_time: true
+  fail_if_accounting_reconciliation_fails: true
+  fail_if_future_membership_leakage_detected: true
+  fail_if_corrected_run_uses_return_lag_less_than_2: true

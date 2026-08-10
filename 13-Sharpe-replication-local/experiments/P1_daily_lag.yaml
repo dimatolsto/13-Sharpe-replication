@@ -1,0 +1,10 @@
+id: P1
+name: safe_daily_timing
+universe_mode: current_constituents
+period_mode: paper_three_windows
+return_lag_sessions: 2
+raw_signal_price_required: false
+point_in_time_membership_required: false
+transaction_cost_bp: 0.60
+paper_scaling: true
+certified: false

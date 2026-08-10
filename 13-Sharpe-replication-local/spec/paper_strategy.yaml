@@ -1,0 +1,26 @@
+version: 1
+frozen: true
+strategy:
+  drift_window: 63
+  up_fraction_threshold: 0.60
+  reversal_lookback: 10
+  value_weight: 0.70
+  reversal_weight: 0.30
+  long_exposure: 0.50
+  short_exposure: 0.50
+  gross_exposure: 1.00
+  rebalance_frequency: daily
+  paper_transaction_cost_bp: 0.60
+  annual_vol_target: 0.12
+  max_drawdown_target: 0.15
+  risk_free_rate: 0.0
+conventions:
+  value_feature: inverse_raw_nominal_close_percentile
+  reversal_feature: negative_trailing_total_return_zscore
+  gate: up_fraction_strictly_greater_than_threshold
+  active_edge_standardization: cross_sectional_zscore_after_gate
+  long_short_rule: sign_of_standardized_active_edge
+  side_weighting: proportional_to_absolute_zscore_within_side
+  corrected_execution_lag_sessions: 1
+  corrected_first_return_after_signal_sessions: 2
+  membership_end_inclusive: true

@@ -1,0 +1,10 @@
+id: P3
+name: add_point_in_time_universe
+universe_mode: point_in_time
+period_mode: paper_three_windows
+return_lag_sessions: 2
+raw_signal_price_required: true
+point_in_time_membership_required: true
+transaction_cost_bp: 0.60
+paper_scaling: true
+certified: true
