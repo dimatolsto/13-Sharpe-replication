@@ -41,18 +41,37 @@ uv run pytest
 uv run drift-replication spec-check
 ```
 
-When data is available:
+Later, after a snapshot is certified and P0-P3 attribution has been reviewed:
 
 ```bash
 uv run drift-replication run --experiment experiments/P4_continuous_oos.yaml \
-  --panel /path/to/panel.parquet \
-  --membership /path/to/membership.parquet
+  --snapshot data/normalized/<certified_snapshot_id>
 ```
 
 Run summaries keep the deterministic unscaled audit trail at the legacy top-level fields and under
 `unscaled`. Experiments that explicitly request paper walk-forward scaling also include `scaled` and
 `scaling_windows`; scaled daily/ledger/yearly files are written with a `_scaled_` filename suffix.
 P4 and P5 are unscaled by default.
+
+Phase 1 adds data-only commands for building and auditing local snapshots. These commands do not run
+strategy performance:
+
+```bash
+uv run drift-replication data normalize data/normalized/dev-snapshot \
+  --daily-source /path/to/daily.csv \
+  --daily-map '{"source_date":"date","source_security_id":"security_id","source_ticker":"ticker","source_close":"raw_close","source_return":"total_return"}' \
+  --raw-close-semantics unknown \
+  --total-return-source provider
+
+uv run drift-replication data validate --panel data/normalized/dev-snapshot/daily_panel.parquet
+uv run drift-replication data inspect data/normalized/dev-snapshot
+uv run drift-replication data certify data/normalized/dev-snapshot --experiment-id P3
+uv run drift-replication data wisesheets-capabilities
+```
+
+Normalized snapshots are immutable by default and include `manifest.json`,
+`validation_report.json`, and `certification_report.json`. Actual market data under `data/raw/` or
+`data/normalized/` is not intended to be committed.
 
 ## Data contract
 
@@ -87,6 +106,9 @@ provider includes a capability/provenance check and requires raw-vs-adjusted sem
 verified before P2-P5 can be certified.
 
 The API key must be supplied only through `WISESHEETS_API_KEY` and is never stored in the repo.
+No WiseSheets network endpoint is implemented yet because authoritative API endpoint/schema
+documentation is not present in this repository. The current CLI reports WiseSheets market-data
+capabilities as `unverified` rather than guessing.
 
 ## Architecture
 

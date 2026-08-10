@@ -31,3 +31,17 @@ The implementation must not silently resolve these items.
 10. **Continuous scaling extension.** P4 is the primary continuous historical-clean result and P5 is
     the forward result; both are unscaled by default. Any future rolling 5-year/1-year scaling variant
     must be labeled as an extension, not as the paper's scaling rule.
+11. **Provider close semantics.** A provider field named `Close` is not assumed to be raw nominal
+    historical close. The data pipeline requires explicit provenance and split-audit evidence before
+    marking `raw_close` as `verified_nominal`.
+12. **Point-in-time membership effective dates.** The repository normalizes membership intervals to
+    inclusive signal-date eligibility, `membership_start <= signal_date <= membership_end`. A source
+    with different add/delete effective-date semantics must document the transformation before
+    certification.
+13. **Stable security identity.** Ticker, company name, and CIK alone are not assumed to identify one
+    tradable share class through time. Continuity across ticker changes or share-class events must
+    come from a security master or provider-native stable identifier.
+14. **Terminal returns.** The Phase 1 pipeline reports missing terminal returns and missing
+    delisting/acquisition events but does not invent CRSP-style delisting returns. P3-P5
+    certification fails when a security disappears while still a member or its final observed return
+    is missing.
