@@ -66,6 +66,7 @@ from .data.yahoo_provider import (
     yahoo_candidate_audit,
     yahoo_provider_metadata,
 )
+from .phase3_attribution import SURVIVORSHIP_LABEL, write_phase3_reports
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
 app = typer.Typer(no_args_is_help=True)
@@ -203,6 +204,39 @@ def run(
     }
     (out_dir / f"{exp.id}_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     _print_json(summary)
+
+
+@app.command("phase3-attribution")
+def phase3_attribution(
+    source_panel: Annotated[Path, typer.Option(exists=True)] = Path(
+        "reports/generated/phase2c/yahoo_source_panel.parquet"
+    ),
+    snapshot_rows: Annotated[Path, typer.Option()] = Path("reports/generated/phase2e/snapshot_rows_mapped.csv"),
+    fallback_anchor: Annotated[Path, typer.Option()] = Path("reports/generated/phase2c/wikipedia_current_anchor.csv"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+) -> None:
+    """Run Phase 3 paper-attribution experiments on the fixed survivorship-biased anchor."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase3_reports(
+        source_panel_path=source_panel,
+        snapshot_rows_path=snapshot_rows,
+        fallback_anchor_path=fallback_anchor,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "out_dir": str(out_dir),
+            "survivorship_bias_label": SURVIVORSHIP_LABEL,
+            "anchor": summary["anchor"],
+            "full_yahoo_redownload": summary["full_yahoo_redownload"],
+            "phase3_only_no_pit_membership_reconstruction": summary[
+                "phase3_only_no_pit_membership_reconstruction"
+            ],
+        }
+    )
 
 
 @data_app.command("wisesheets-capabilities")

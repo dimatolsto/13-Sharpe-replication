@@ -79,6 +79,7 @@ def daily_portfolio_returns(
     certified output by audit code.
     """
     ledger = aligned.copy()
+    ledger["missing_weighted_return"] = ledger["total_return"].isna() & ledger["signal_weight"].ne(0.0)
     ledger["gross_contribution"] = ledger["signal_weight"] * ledger["total_return"]
 
     # Compute daily gross return from available contributions.
@@ -86,13 +87,14 @@ def daily_portfolio_returns(
         ledger.groupby("return_date", as_index=False)
         .agg(
             gross_return=("gross_contribution", "sum"),
-            missing_returns=("total_return", lambda x: int(x.isna().sum())),
+            missing_returns=("missing_weighted_return", "sum"),
             n_positions=("signal_weight", lambda x: int((x != 0).sum())),
             gross_exposure=("signal_weight", lambda x: float(x.abs().sum())),
             net_exposure=("signal_weight", "sum"),
         )
         .sort_values("return_date")
     )
+    daily.loc[daily["missing_returns"].gt(0), "gross_return"] = np.nan
 
     # Build turnover from signal weights by their return_date. This captures target portfolio change.
     wide = ledger.pivot_table(

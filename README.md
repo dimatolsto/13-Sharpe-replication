@@ -172,6 +172,24 @@ evidence standard for lineage changes. Membership remains `FAIL`: the count rang
 reconstruction failures remain unresolved, and the 2004-2006 period remains a P3-blocking gap. No
 Yahoo full redownload or P0-P5 performance was run.
 
+Phase 3 is documented in `docs/PHASE3_PAPER_ATTRIBUTION.md`. It intentionally pauses PIT membership
+archaeology and preserves the paper's acknowledged current-constituent survivorship bias to isolate
+other methodology questions. The fixed anchor is a cached 2025-12-22 iShares IVV snapshot with 503
+rows, 34 days after the paper publication date; 498 anchor securities have cached Yahoo market data.
+The Phase 3 command is:
+
+```bash
+uv run drift-replication phase3-attribution --out-dir reports/generated/phase3
+```
+
+Every Phase 3 result is labeled `SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE` and is not an investable
+PIT simulation. Under favorable R0 paper-like assumptions, reproduced paper-scaled Sharpe was 2.05,
+0.43, and 0.74 in the 2010, 2015, and 2020 paper windows, far below the paper's 16.89, 22.87, and
+5.11. Corrected R2 selected-window Sharpe was 0.40 unscaled, and continuous corrected R3
+survivorship-biased Sharpe over 2010-2024 was 0.02. Phase 3 does not change Phase 2 P2/P3
+certification: Yahoo Close remains failed as nominal raw close, reconstructed nominal close remains
+candidate-only, and true PIT membership work remains deferred.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,

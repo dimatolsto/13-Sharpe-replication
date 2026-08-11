@@ -81,7 +81,7 @@
 - Apply raw nominal price / corporate-action-safe returns.
 - Apply PIT constituent universe.
 
-## Phase 3 — primary results
+## Later certified-result targets
 
 - P4: continuous 2009-2024 historical-clean result.
 - P5: post-publication result from 2025-11-19 onward.
@@ -200,3 +200,30 @@
   mismatches, backward failures, reentries, early-period gaps, and worst checkpoint differences.
 - P2 remains `FAIL` from Phase 2C raw-close findings, so overall P3 cannot pass.
 - No full Yahoo redownload and no P0-P5 strategy performance were run in Phase 2E.
+
+## Phase 3 — paper reproduction and methodological attribution (executed)
+
+- Added tracked Phase 3 experiment specs R0/R1/R2/R3 and the dedicated
+  `drift-replication phase3-attribution` command.
+- Intentionally froze a survivorship-biased current-constituent paper-like universe instead of
+  continuing PIT membership archaeology:
+  `SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE`.
+- Selected the closest existing cached paper-date anchor: riazarbi iShares IVV holdings snapshot
+  dated 2025-12-22, 34 days after the paper publication date, with 503 constituents. Cached Yahoo
+  market data exists for 498 of them; five anchor symbols remain unavailable in the existing cache.
+- Built a Phase 3 input panel from the existing Phase 2C Yahoo source panel without a full Yahoo
+  redownload. Yahoo `Close`, Yahoo `Adj Close`, and `reconstructed_nominal_close` remain separate.
+- R0/R1 differ only by timing (`lag=1` vs `lag=2`). R1/R2 differ only by the VALUE price
+  representation (Yahoo Close vs reconstructed nominal close). R3 is continuous 2010-2024,
+  unscaled, corrected timing, and survivorship-biased.
+- Added augmented security ledgers with signal date, weight date, earned return date, security
+  return, gross contribution, turnover contribution, cost contribution, and net contribution.
+  Generated ledgers reconcile to daily net returns within numerical tolerance.
+- Tightened portfolio accounting so missing returns are counted as blocking only when the security
+  has nonzero weight; missing weighted returns are not silently filled with zero.
+- Phase 3 results do not reproduce the paper. R0 paper-scaled Sharpe is 2.05, 0.43, and 0.74 for
+  2010, 2015, and 2020, versus paper values 16.89, 22.87, and 5.11. R2 unscaled selected-window
+  Sharpe is 0.40, and R3 continuous 2010-2024 Sharpe is 0.02.
+- Phase 3 does not change certification: P2 raw-close remains `FAIL`, reconstructed nominal close
+  remains candidate-only pending independent validation, PIT membership remains deferred, and overall
+  P3 cannot pass.

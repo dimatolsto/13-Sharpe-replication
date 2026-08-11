@@ -1,0 +1,21 @@
+id: R3
+name: Phase 3 continuous corrected survivorship-biased attribution
+universe_mode: current_constituents
+period_mode: continuous
+start_date: 2010-01-01
+end_date: 2024-12-31
+return_lag_sessions: 2
+raw_signal_price_required: true
+point_in_time_membership_required: false
+transaction_cost_bp: 0.60
+paper_scaling: false
+certified: false
+primary_historical_result: false
+primary_forward_result: false
+phase3_role: R3
+value_price_column: reconstructed_nominal_close
+total_return_source: yahoo_adj_close_pct_change
+survivorship_biased: true
+survivorship_bias_label: SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE
+scaling:
+  mode: none

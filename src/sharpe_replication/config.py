@@ -137,6 +137,11 @@ class ExperimentConfig(StrictBaseModel):
     scaling: ScalingConfig | None = None
     primary_historical_result: bool = False
     primary_forward_result: bool = False
+    phase3_role: Literal["R0", "R1", "R2", "R3", "R0N"] | None = None
+    value_price_column: Literal["yahoo_close", "reconstructed_nominal_close"] | None = None
+    total_return_source: Literal["yahoo_adj_close_pct_change"] | None = None
+    survivorship_biased: bool = False
+    survivorship_bias_label: str | None = None
 
     @model_validator(mode="after")
     def validate_experiment(self) -> ExperimentConfig:
@@ -160,6 +165,14 @@ class ExperimentConfig(StrictBaseModel):
             raise ValueError("paper_scaling=false requires scaling mode 'none'")
         if self.scaling.mode == "paper_walk_forward" and self.period_mode != "paper_three_windows":
             raise ValueError("paper_walk_forward scaling applies only to paper_three_windows")
+        if self.survivorship_biased and self.universe_mode != "current_constituents":
+            raise ValueError("survivorship-biased experiments must use current_constituents universe")
+        if self.phase3_role and not self.survivorship_biased:
+            raise ValueError("Phase 3 experiments must declare survivorship_biased=true")
+        if self.phase3_role and not self.value_price_column:
+            raise ValueError("Phase 3 experiments must declare value_price_column")
+        if self.phase3_role and self.total_return_source != "yahoo_adj_close_pct_change":
+            raise ValueError("Phase 3 experiments must use yahoo_adj_close_pct_change returns")
         return self
 
 

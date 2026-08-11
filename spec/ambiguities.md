@@ -107,3 +107,26 @@ The implementation must not silently resolve these items.
     large disagreements and useful targeted research cases, but applied no identity repairs. Future
     repairs must be represented in `spec/phase2e_identity_resolutions.csv` and supported by primary,
     archived-primary, strong multi-source, or contemporaneous evidence.
+32. **Phase 3 intentionally preserves survivorship bias.** The paper acknowledges current S&P 500
+    constituents were used historically. Phase 3 therefore freezes a current-constituent
+    `SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE` to isolate timing, price, scaling, accounting, and
+    window-selection issues. These runs must not be described as investable PIT simulations.
+33. **Phase 3 anchor exactness is approximate.** The preferred exact publication-date constituent
+    list was not reconstructed. Phase 3 uses the nearest existing cached snapshot, a 2025-12-22
+    iShares IVV holdings file, 34 days after the 2025-11-18 publication date. The anchor is frozen
+    before results and must not be changed based on performance.
+34. **Phase 3 current symbols are paper-like provider identities.** The Phase 3 universe collapses
+    duplicate Phase 2C provisional identities by current provider symbol/date so one anchor symbol
+    cannot create multiple positions. This is appropriate only for the intentionally
+    survivorship-biased paper-like reproduction and must not be reused as PIT security identity
+    evidence.
+35. **Phase 3 reconstructed nominal close remains candidate-only.** R2/R3 use the Phase 2C
+    split-deadjusted `reconstructed_nominal_close` for the inverse-price VALUE feature, but P&L,
+    reversal, and regime calculations continue to use Yahoo `Adj Close` percentage returns. The
+    reconstructed nominal field remains uncertified until independent historical observations
+    validate it.
+36. **Phase 3 reproduction failure is not misconduct evidence.** The Phase 3 R0 paper-like run does
+    not reproduce the paper's reported Sharpe or return, but that only establishes a
+    replication/data/implementation discrepancy under the repository's frozen interpretation. It
+    does not prove intent, and future author code/data or a different vendor feed could explain part
+    of the difference.
