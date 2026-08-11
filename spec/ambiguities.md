@@ -78,3 +78,18 @@ The implementation must not silently resolve these items.
 23. **Current-session right edge.** Data audits must distinguish the latest completed XNYS exchange
     session from the latest provider session actually returned. Active constituents at that right edge
     are `right_censored_active`; an unfinished current daily bar is not a terminal disappearance.
+24. **Phase 2D event verification remains incomplete.** A bounded Phase 2D pass verified 14 seed
+    events against S&P Global primary releases and found one 2004 secondary replacement group, but
+    723 in-window seed events remain unresolved with `UNKNOWN` timing. Future work must not infer
+    effective sessions from common S&P practice without source wording.
+25. **Phase 2D count inflation is an identity diagnostic, not a repair target.** The 503-574
+    reconstructed member-count range is mainly explained by provisional `wiki:<ticker>:<name>`
+    identity alias mismatches and additions not present during backward inversion. Do not force
+    counts to 500 or invent events to eliminate the anomaly.
+26. **2004 remains a suspected membership gap.** Wikipedia has zero 2004 seed rows. Phase 2D found a
+    secondary E*TRADE/FleetBoston replacement effective after close on 2004-03-31, but no primary or
+    archived-primary S&P copy was recovered. Treat 2004 as incomplete until primary/archive or
+    multiple reliable fallback sources resolve it.
+27. **Internal lineages are explicit but mostly provisional.** Phase 2D writes identity lineages and
+    ambiguity registers, but CIK enrichment is issuer-level only and does not certify tradable
+    security identity. Ticker/name similarity must remain insufficient for merging identities.

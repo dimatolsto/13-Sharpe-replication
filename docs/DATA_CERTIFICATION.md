@@ -74,6 +74,19 @@ For P3+, a security master with only ticker intervals is not sufficient. Rows ne
 or external stable identifier (`external_id` or equivalent). Missing stable IDs keep
 `stable_identifiers_sufficient` at `UNVERIFIED`.
 
+Phase 2D evaluated only the membership/identity component. It does not change raw-close or
+total-return certification. The membership component remains `FAIL` after Phase 2D because:
+
+- 723 of 737 in-window Wikipedia seed events remain unresolved and `UNKNOWN` timing.
+- The 2026-08-11 anchor remains a provisional Wikipedia current table.
+- The conservation audit still shows 76 backward failures and 74 net excess count delta.
+- Identity lineages remain mostly provisional, with 232 ambiguity rows and 10 unresolved reentries.
+- The 2004 seed has zero rows; one secondary replacement group was found, but primary/archive
+  confirmation and completeness remain unresolved.
+
+The Phase 2D result therefore cannot promote P3. P2 also remains `FAIL` from Phase 2C raw-close
+evidence, so overall P3 remains `FAIL` even if later membership work improves.
+
 ## Split Audit
 
 For each known N-for-1 split, the split audit compares the previous nominal close to the split-day

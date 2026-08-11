@@ -23,6 +23,7 @@ from .data.normalize import (
     normalize_membership,
     normalize_security_master,
 )
+from .data.phase2d_membership import write_phase2d_reports
 from .data.snapshot import hash_snapshot, inspect_snapshot, write_snapshot
 from .data.source_discovery import source_discovery_report
 from .data.sp500_events import (
@@ -375,6 +376,41 @@ def data_reconstruct_membership(
     if metadata_out is not None:
         write_json(metadata_out, result.to_dict())
     _print_json({"out": str(out), **result.to_dict()})
+
+
+@data_app.command("phase2d-membership-report")
+def data_phase2d_membership_report(
+    events: Annotated[Path, typer.Option(exists=True)],
+    anchor: Annotated[Path, typer.Option(exists=True)],
+    wikipedia_html: Annotated[Path, typer.Option(exists=True)],
+    membership: Annotated[Path, typer.Option(exists=True)],
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase2d"),
+    source_cache_dir: Annotated[Path, typer.Option()] = Path("data/raw/sp500_membership/phase2d_source_cache"),
+    yahoo_state: Annotated[Path | None, typer.Option(exists=True)] = None,
+    start_date: Annotated[str, typer.Option()] = "2004-01-01",
+    anchor_date: Annotated[str, typer.Option()] = "2026-08-11",
+    end_date: Annotated[str, typer.Option()] = "2026-08-11",
+    max_source_fetches: Annotated[int, typer.Option(min=0)] = 0,
+    source_sleep_seconds: Annotated[float, typer.Option(min=0.0)] = 0.25,
+    force_sources: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Generate Phase 2D membership/identity reports without running strategy performance."""
+    summary = write_phase2d_reports(
+        events_path=events,
+        anchor_path=anchor,
+        wikipedia_html_path=wikipedia_html,
+        membership_path=membership,
+        out_dir=out_dir,
+        source_cache_dir=source_cache_dir,
+        yahoo_state_path=yahoo_state,
+        start_date=start_date,
+        anchor_date=anchor_date,
+        end_date=end_date,
+        max_source_fetches=max_source_fetches,
+        source_sleep_seconds=source_sleep_seconds,
+        force_sources=force_sources,
+    )
+    _print_json(summary)
 
 
 @data_app.command("plan-yahoo")

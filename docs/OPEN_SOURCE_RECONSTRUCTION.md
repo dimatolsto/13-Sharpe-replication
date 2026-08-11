@@ -122,6 +122,18 @@ Phase 2C left certification in that negative state:
   handled as `right_censored_active`, not disappearance while member.
 - P4/P5: not run and not certifiable while P3 fails.
 
+Phase 2D added a membership-reconciliation layer on top of this provisional reconstruction. It
+extracts underlying citation targets from the frozen Wikipedia HTML, builds a resumable verification
+queue, caches bounded source fetches, and writes explicit reports for reconstruction conservation,
+count-inflation causes, event groups, identity lineages, reentries, residual gaps, manual review,
+anchor comparison, historical snapshot checks, and Yahoo plan delta.
+
+The first bounded pass verified 14 seed events against S&P Global primary releases and found two
+additional 2004 secondary event rows. It did not repair identity chains or force counts near 500.
+The member-count range remains 503 to 574 with median 543, now explained primarily by provisional
+identity alias mismatches and additions not present during backward inversion. Membership remains
+`FAIL`.
+
 ## Commands
 
 ```bash
@@ -136,6 +148,11 @@ uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir da
 uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out panel.csv --actions-out actions.csv
 uv run drift-replication data audit-yahoo --panel panel.csv --corporate-actions actions.csv
 uv run drift-replication data compare-wisesheets --yahoo-panel panel.csv --wisesheets-export wisesheets.csv
+uv run drift-replication data phase2d-membership-report \
+  --events data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_events.csv \
+  --anchor reports/generated/phase2c/wikipedia_current_anchor.csv \
+  --wikipedia-html data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_sp500.html \
+  --membership reports/generated/phase2c/provisional_membership.csv
 ```
 
 These commands are data/provenance tools. They do not compute strategy Sharpe, CAGR, wealth, or

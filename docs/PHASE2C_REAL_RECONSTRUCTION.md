@@ -209,12 +209,20 @@ Experiment-specific data certification after Phase 2C:
 
 ## Next Data-Resolution Tasks
 
-1. Verify the 737 in-window Wikipedia seed events against primary S&P, archived primary S&P, or
-   high-quality contemporaneous fallback evidence.
-2. Discover missing 2004 and other non-Wikipedia S&P events from primary archives.
+Phase 2D started the membership-specific follow-up and is documented in
+`docs/PHASE2D_MEMBERSHIP_RECONCILIATION.md`. It verified 14 seed events against primary S&P Global
+press releases, found one additional 2004 replacement group from secondary contemporaneous evidence,
+and produced reconstruction-conservation plus identity/gap reports. It did not certify membership;
+the tasks below remain open.
+
+1. Verify the remaining 723 in-window Wikipedia seed events against primary S&P, archived primary
+   S&P, or high-quality contemporaneous fallback evidence.
+2. Recover primary/archived-primary support for the 2004 E*TRADE/FleetBoston replacement and search
+   for any other 2004 non-Wikipedia events.
 3. Replace provisional `wiki:<symbol>:<name>` identities with external stable IDs or reviewed
    manual identity mappings.
-4. Resolve the 205 failed Yahoo aliases, prioritizing member-day gaps and former constituents.
+4. Resolve the 205 failed Yahoo aliases, prioritizing member-day gaps and former constituents after
+   membership identity chains are corrected.
 5. Cross-check `reconstructed_nominal_close` against independent historical observations before any
    raw-close certification change.
 6. Investigate the four suspicious split-return events, ten material dividend mismatches, ten

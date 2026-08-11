@@ -132,6 +132,21 @@ Phase 2C tested this route with real acquisitions. The result was useful but neg
 The open-source path is therefore not currently P2/P3 certifiable without a separate nominal-close
 source, primary event verification, stable identifiers, and former-security price resolution.
 
+Phase 2D advanced the membership side of the open-source route but did not certify it:
+
+- Useful primary event URLs are current S&P Global press releases under `https://press.spglobal.com/`.
+- Legacy `standardandpoors.com` article/PDF links in Wikipedia footnotes often redirect to generic
+  S&P pages and need Wayback-specific recovery.
+- A bounded fetch of 30 candidate sources verified 14 seed events against live S&P Global primary
+  releases and extracted `BEFORE_OPEN` timing.
+- One 2004 replacement group was found via a secondary PRNewswire mirror, but no primary/archive
+  2004 S&P copy was recovered.
+- The high reconstructed member counts were decomposed as provisional identity-chain failures rather
+  than treated as proof of missing events.
+
+The practical source implication is unchanged: public S&P releases can verify many event facts, but
+they are not yet a complete machine-readable PIT membership source.
+
 ## Identifier Handling
 
 CRSP PERMNO is the preferred stable security identifier when available. Norgate `assetid` is the
