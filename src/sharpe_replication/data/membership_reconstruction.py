@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from .normalize import normalize_membership
+from .trading_calendar import TradingCalendar, trading_calendar_metadata
 
 
 @dataclass
@@ -49,6 +50,12 @@ def _normalize_events(events: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Unsupported membership actions: {invalid}")
     if "announcement_date" in out.columns:
         out["announcement_date"] = pd.to_datetime(out["announcement_date"]).dt.normalize()
+    if "effective_session" in out.columns:
+        out["effective_session"] = out["effective_session"].astype(str).str.upper()
+    if "timing_uncertain" not in out.columns:
+        out["timing_uncertain"] = out.get("effective_session", pd.Series("", index=out.index)).eq("UNKNOWN")
+    else:
+        out["timing_uncertain"] = out["timing_uncertain"].fillna(False).astype(bool)
     return out.sort_values(["effective_date", "action", "security_id"]).reset_index(drop=True)
 
 
@@ -100,12 +107,13 @@ def reconstruct_membership_from_change_events(
     start_date: date | str | pd.Timestamp,
     end_date: date | str | pd.Timestamp,
     source: str = "change_events",
+    calendar: TradingCalendar | None = None,
 ) -> ReconstructionResult:
     """Reconstruct inclusive membership spells from effective-date add/remove events.
 
-    Events are interpreted as effective at the start of `effective_date`. Therefore a removal on
-    date D means the prior spell ends on D - 1 calendar day. This is the repository's explicit
-    daily-bar convention for public S&P announcements that state "prior to the open".
+    Events are interpreted as effective at the start of `effective_date`. If `calendar` is supplied,
+    the prior interval ends on the previous trading session; otherwise the Phase 2A calendar-day
+    fallback is preserved.
     """
 
     normalized_events = _normalize_events(events)
@@ -119,8 +127,14 @@ def reconstruct_membership_from_change_events(
         "anchor_date": anchor_ts.date().isoformat(),
         "start_date": start_ts.date().isoformat(),
         "end_date": end_ts.date().isoformat(),
-        "effective_date_interpretation": "effective at start of date; removals end on previous calendar day",
+        "effective_date_interpretation": (
+            "effective at start of date; removals end on previous XNYS session"
+            if calendar is not None
+            else "effective at start of date; removals end on previous calendar day"
+        ),
+        "trading_calendar": trading_calendar_metadata() if calendar is not None else None,
         "event_count": len(normalized_events),
+        "timing_uncertain_event_count": int(normalized_events["timing_uncertain"].sum()),
         "duplicate_additions": [],
         "removals_without_active_member": [],
     }
@@ -130,7 +144,7 @@ def reconstruct_membership_from_change_events(
     intervals: list[tuple[pd.Timestamp, pd.Timestamp, set[str]]] = []
     anchor_set = {str(member) for member in anchor_members}
     for left, right in pairwise(boundaries):
-        interval_end = right - pd.Timedelta(days=1)
+        interval_end = calendar.previous_session(right) if calendar is not None else right - pd.Timedelta(days=1)
         if interval_end < start_ts or left > end_ts:
             continue
         state = _state_on(normalized_events, anchor_set, anchor_ts, left, diagnostics)
@@ -140,7 +154,12 @@ def reconstruct_membership_from_change_events(
     for start, end, state in intervals:
         for security_id in sorted(state):
             blocks = spells.setdefault(security_id, [])
-            if blocks and start <= blocks[-1][1] + pd.Timedelta(days=1):
+            next_contiguous_date = (
+                calendar.next_session(blocks[-1][1], include_current=False)
+                if blocks and calendar is not None
+                else (blocks[-1][1] + pd.Timedelta(days=1) if blocks else None)
+            )
+            if blocks and next_contiguous_date is not None and start <= next_contiguous_date:
                 blocks[-1][1] = end
             else:
                 blocks.append([start, end])
@@ -151,6 +170,7 @@ def reconstruct_membership_from_change_events(
             "membership_start": start,
             "membership_end": end,
             "source": source,
+            "timing_uncertain": bool(normalized_events["timing_uncertain"].any()),
         }
         for security_id, blocks in sorted(spells.items())
         for start, end in blocks

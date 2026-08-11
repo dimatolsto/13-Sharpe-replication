@@ -94,6 +94,14 @@ def validate_security_master(
             row_count=ticker_overlap_count,
         )
 
+    if "external_id" not in master.columns or master["external_id"].fillna("").astype(str).str.strip().eq("").any():
+        report.add(
+            Severity.WARNING,
+            "stable_identifier_unverified",
+            "At least one security-master row lacks a provider-native or external stable identifier",
+            dataset="security_master",
+        )
+
     ticker_changes = int((master.groupby("security_id")["ticker"].nunique() > 1).sum())
     reused_tickers = int((master.groupby("ticker")["security_id"].nunique() > 1).sum())
     report.sections["security_master"] = {

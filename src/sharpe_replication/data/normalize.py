@@ -28,6 +28,13 @@ def _parse_date_column(s: pd.Series, column: str) -> pd.Series:
     return out
 
 
+def _bool_column(s: pd.Series) -> pd.Series:
+    if pd.api.types.is_bool_dtype(s):
+        return s.fillna(False).astype(bool)
+    text = s.fillna(False).astype(str).str.strip().str.lower()
+    return text.isin({"true", "1", "yes", "y"})
+
+
 def _canonical_columns(df: pd.DataFrame, order: list[str]) -> pd.DataFrame:
     ordered = [column for column in order if column in df.columns]
     extras = sorted(column for column in df.columns if column not in ordered)
@@ -116,6 +123,8 @@ def normalize_membership(
     df["security_id"] = _string_column(df["security_id"])
     df["membership_start"] = _parse_date_column(df["membership_start"], "membership_start")
     df["membership_end"] = pd.to_datetime(df["membership_end"], errors="coerce").dt.normalize()
+    if "timing_uncertain" in df.columns:
+        df["timing_uncertain"] = _bool_column(df["timing_uncertain"])
     if source is not None and "source" not in df.columns:
         df["source"] = source
     return _canonical_columns(

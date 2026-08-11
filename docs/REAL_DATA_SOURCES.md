@@ -75,15 +75,18 @@ reconstruction, but the public pages reviewed do not provide a complete machine-
 constituent table with stable identifiers.
 
 The repository now includes deterministic reconstruction support for add/remove event histories in
-`src/sharpe_replication/data/membership_reconstruction.py`. The convention is:
+`src/sharpe_replication/data/membership_reconstruction.py`. Phase 2B normalizes membership-effective
+dates with the XNYS/NYSE exchange calendar from `exchange-calendars==4.13.2`:
 
 ```text
-effective at start of effective_date;
-removal effective on D means membership_end = D - 1 calendar day
+ADD before open D    -> membership_start = D
+REMOVE before open D -> membership_end = previous XNYS session
+ADD after close D    -> membership_start = next XNYS session
+REMOVE after close D -> membership_end = D
 ```
 
-This matches public S&P announcements that say changes are effective prior to the open. A source
-with after-close semantics must be normalized explicitly before certification.
+UNKNOWN effective-session timing remains a certification blocker; it is not resolved by applying the
+calendar mechanically.
 
 ## Price And Return Data
 
@@ -100,6 +103,18 @@ Recommended paths:
    delisted securities, and `$SPX` constituent time series.
 3. WiseSheets/local exports only as provisional P0/P1/P2 candidates after split and total-return
    audits prove field semantics.
+
+Phase 2B implements the open/low-cost path as tooling, not as a certified snapshot:
+
+- Wikipedia selected changes seed the event ledger but remain `UNVERIFIED`.
+- S&P primary and archived announcements are represented as evidence overlays.
+- Yahoo Finance/yfinance can supply candidate `Close`, `Adj Close`, dividends, and splits with
+  `auto_adjust=False` and `repair=False`.
+- WiseSheets local exports can cross-check Yahoo values, but never override them automatically.
+
+This route may support a provisional P0/P1/P2 input later, but P3 requires much stronger membership,
+identity, terminal-return, and member-day coverage evidence than Wikipedia plus ticker-centric Yahoo
+can provide by default.
 
 ## Identifier Handling
 

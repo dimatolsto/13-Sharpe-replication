@@ -46,6 +46,25 @@ Phase 2A did not certify a real snapshot. CRSP/WRDS and Norgate are documented a
 P3-capable paths if licensed and empirically audited. WiseSheets remains `UNVERIFIED` for raw-close,
 total-return, delisted-security, stable-ID, and PIT-membership suitability.
 
+Phase 2B adds an open/low-cost reconstruction pipeline, but parsing Wikipedia or Yahoo successfully
+is still not certification. P3 membership remains `UNVERIFIED` or `FAIL` while material events lack
+primary/archived/fallback evidence, effective-session semantics are unknown, identity mappings are
+provisional, or member-day Yahoo coverage is incomplete.
+
+Effective-session timing is part of certification evidence. Reconstructed memberships built from
+`UNKNOWN` event timing carry `timing_uncertain=True`; validation emits
+`unknown_effective_session_timing`, and P3/P4/P5 membership interval certification fails until the
+event evidence establishes the timing convention.
+
+Yahoo `Close` can become certified raw close only through empirical split checks. A candidate
+`total_return_source=yahoo_adjusted_close` is explicit provenance, not an automatic PASS; split,
+dividend, no-action, extreme-return, and missing-return diagnostics must support it before it can be
+treated as corporate-action safe.
+
+For P3+, a security master with only ticker intervals is not sufficient. Rows need a provider-native
+or external stable identifier (`external_id` or equivalent). Missing stable IDs keep
+`stable_identifiers_sufficient` at `UNVERIFIED`.
+
 ## Split Audit
 
 For each known N-for-1 split, the split audit compares the previous nominal close to the split-day

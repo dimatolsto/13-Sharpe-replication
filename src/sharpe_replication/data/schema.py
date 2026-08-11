@@ -35,7 +35,7 @@ DAILY_OPTIONAL = [
 DAILY_ORDER = DAILY_REQUIRED + DAILY_OPTIONAL
 
 MEMBERSHIP_REQUIRED = ["security_id", "membership_start", "membership_end"]
-MEMBERSHIP_ORDER = MEMBERSHIP_REQUIRED + ["source", "source_security_id"]
+MEMBERSHIP_ORDER = MEMBERSHIP_REQUIRED + ["source", "source_security_id", "timing_uncertain"]
 
 SECURITY_MASTER_REQUIRED = ["security_id", "ticker", "effective_start", "effective_end", "source"]
 SECURITY_MASTER_OPTIONAL = ["source_security_id", "external_id"]
@@ -61,7 +61,7 @@ CORPORATE_ACTION_TYPES = {
 }
 
 RAW_CLOSE_SEMANTICS = {"verified_nominal", "likely_adjusted", "unknown"}
-TOTAL_RETURN_SOURCES = {"provider", "reconstructed", "unknown"}
+TOTAL_RETURN_SOURCES = {"provider", "reconstructed", "yahoo_adjusted_close", "unknown"}
 
 
 @dataclass(frozen=True)
