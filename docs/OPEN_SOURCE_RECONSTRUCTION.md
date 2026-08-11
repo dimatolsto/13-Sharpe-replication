@@ -72,8 +72,8 @@ actions=True
 ```
 
 `repair=False` is intentional because yfinance repair logic can alter historical values. `Close` and
-`Adj Close` are stored separately. `Close` is only a candidate raw close until split audits show it is
-consistent with nominal historical prices.
+`Adj Close` are stored separately. `Close` is preserved as `yahoo_close` for raw-close investigation
+and is not promoted into certified `raw_close`.
 
 The optional acquisition dependency is pinned as `yfinance==1.5.1`. Yahoo raw-acquisition metadata
 records both the installed yfinance version and the exact download settings.
@@ -89,6 +89,17 @@ facts, not rows to drop. The acquisition state records `pending`, `complete`, `p
 Ticker aliases must come from the reconstructed historical membership and security-master mapping.
 Fetching only current S&P 500 symbols would recreate survivorship bias.
 
+The Phase 2C real acquisition used the union of provisional historical member identities and found
+728 completed alias downloads and 205 permanent/no-data alias failures. Empirical split auditing of
+the acquired Yahoo `Close` field failed nominal raw-close certification: 489 of 616 split checks were
+classified `likely_back_adjusted`. Yahoo `Close` therefore cannot be promoted to certified
+`raw_close` for this reconstruction.
+
+Phase 2C now keeps Yahoo `Close` as an explicit source field and also computes a separate
+`reconstructed_nominal_close` candidate by reversing subsequent Yahoo split factors. That candidate
+audited as 603 of 616 nominal-consistent split checks, with 4 likely back-adjusted and 9 ambiguous
+events, but it is not certified until independent historical-price cross-checks support it.
+
 ## Certification
 
 Open reconstruction is provisional until:
@@ -103,16 +114,25 @@ Open reconstruction is provisional until:
 No Phase 2B code weakens P2/P3 certification. If the open-source evidence remains incomplete, P3
 stays `FAIL` or `UNVERIFIED`.
 
+Phase 2C left certification in that negative state:
+
+- P2: `FAIL` due Yahoo `Close` split/back-adjustment evidence.
+- P3: `FAIL` due P2 failure, unverified/UNKNOWN-timing membership events, provisional IDs, missing
+  member-day coverage, and unresolved former-security coverage. The current-session right edge is
+  handled as `right_censored_active`, not disappearance while member.
+- P4/P5: not run and not certifiable while P3 fails.
+
 ## Commands
 
 ```bash
 uv run drift-replication data acquire-wikipedia-events --raw-dir data/raw/sp500_membership/wikipedia/<id>
 uv run drift-replication data parse-wikipedia-events --html data/raw/.../wikipedia_sp500.html --out data/raw/.../wikipedia_events.csv
+uv run drift-replication data parse-wikipedia-anchor --html data/raw/.../wikipedia_sp500.html --out reports/generated/phase2c/wikipedia_current_anchor.csv
 uv run drift-replication data verify-sp500-events --seed-events seed.csv --evidence-events evidence.csv --out verified.csv
 uv run drift-replication data event-completeness --events verified.csv --gaps-out gaps.csv
-uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json
+uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json --provisional-security-ids
 uv run drift-replication data plan-yahoo --aliases yahoo_aliases.csv --state-out yahoo_state.csv
-uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01
+uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01 --symbol-sleep 0.1
 uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out panel.csv --actions-out actions.csv
 uv run drift-replication data audit-yahoo --panel panel.csv --corporate-actions actions.csv
 uv run drift-replication data compare-wisesheets --yahoo-panel panel.csv --wisesheets-export wisesheets.csv

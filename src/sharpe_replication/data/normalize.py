@@ -93,7 +93,17 @@ def normalize_daily_panel(
     df["date"] = _parse_date_column(df["date"], "date")
     df["security_id"] = _string_column(df["security_id"])
     df["ticker"] = _string_column(df["ticker"])
-    for column in ["raw_close", "total_return", "open", "high", "low", "adjusted_close"]:
+    for column in [
+        "raw_close",
+        "total_return",
+        "open",
+        "high",
+        "low",
+        "yahoo_close",
+        "adjusted_close",
+        "reconstructed_nominal_close",
+        "split_adjustment_multiplier",
+    ]:
         if column in df.columns:
             df[column] = pd.to_numeric(df[column], errors="raise")
     for column in ["volume", "unadjusted_volume"]:

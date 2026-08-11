@@ -22,7 +22,10 @@ DAILY_OPTIONAL = [
     "open",
     "high",
     "low",
+    "yahoo_close",
     "adjusted_close",
+    "reconstructed_nominal_close",
+    "split_adjustment_multiplier",
     "volume",
     "unadjusted_volume",
     "dividend_cash",
@@ -31,6 +34,7 @@ DAILY_OPTIONAL = [
     "source_security_id",
     "source",
     "source_timestamp",
+    "raw_close_source",
 ]
 DAILY_ORDER = DAILY_REQUIRED + DAILY_OPTIONAL
 

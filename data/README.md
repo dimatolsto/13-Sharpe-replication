@@ -42,11 +42,12 @@ uv run drift-replication data wisesheets-capabilities
 uv run drift-replication data discover-sources
 uv run drift-replication data acquire-wikipedia-events --raw-dir data/raw/sp500_membership/wikipedia/<id>
 uv run drift-replication data parse-wikipedia-events --html data/raw/.../wikipedia_sp500.html --out data/raw/.../wikipedia_events.csv
+uv run drift-replication data parse-wikipedia-anchor --html data/raw/.../wikipedia_sp500.html --out reports/generated/phase2c/wikipedia_current_anchor.csv
 uv run drift-replication data verify-sp500-events --seed-events seed.csv --evidence-events evidence.csv --out verified.csv
 uv run drift-replication data event-completeness --events verified.csv --gaps-out gaps.csv
-uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json
+uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json --provisional-security-ids
 uv run drift-replication data plan-yahoo --aliases yahoo_aliases.csv --state-out yahoo_state.csv
-uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01
+uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01 --symbol-sleep 0.1
 uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out yahoo_panel.csv --actions-out yahoo_actions.csv
 uv run drift-replication data audit-yahoo --panel yahoo_panel.csv --corporate-actions yahoo_actions.csv
 uv run drift-replication data compare-wisesheets --yahoo-panel yahoo_panel.csv --wisesheets-export wisesheets_export.csv
@@ -57,8 +58,22 @@ uv run drift-replication data audit-coverage \
 
 Phase 2B open-source commands are staged acquisition tools. They do not run P0-P5 or compute
 strategy performance. Wikipedia events are unverified seeds until superseded by primary, archived
-primary, or fallback evidence. Yahoo `Close` is candidate raw close only until split audits certify
-nominal behavior.
+primary, or fallback evidence. Yahoo `Close` is preserved as `yahoo_close` for raw-close
+investigation; it is not promoted to certified `raw_close`.
+
+Phase 2C executed those commands on real Wikipedia and Yahoo inputs. Local generated reports are
+under `reports/generated/phase2c/`, and raw files are under gitignored `data/raw/...` directories.
+No immutable normalized snapshot was frozen because the data failed certification:
+
+- Wikipedia seed events from 2004 onward remain unverified and effective-session timing is unknown.
+- Yahoo `Close` failed empirical nominal raw-close certification on real split events.
+- Yahoo acquisition left former/delisted member aliases unresolved, with missing member-day and
+  terminal-return blockers.
+- A separate `reconstructed_nominal_close` candidate exists for investigation, but it is not certified
+  until independent cross-source validation supports it.
+
+The candidate Yahoo panel and audits are useful forensic evidence only; they must not be used as a
+P2/P3 certified input.
 
 ## Daily Security Panel
 
@@ -75,12 +90,17 @@ Required columns:
 | `total_return` | corporate-action-correct close-to-close return ending on `date` |
 
 Optional columns include `open`, `high`, `low`, `adjusted_close`, `volume`,
-`unadjusted_volume`, `dividend_cash`, `split_factor`, `source_symbol`, and
-`source_security_id`.
+`unadjusted_volume`, `dividend_cash`, `split_factor`, `source_symbol`, `source_security_id`,
+`yahoo_close`, `reconstructed_nominal_close`, `split_adjustment_multiplier`, and
+`raw_close_source`.
 
 `raw_close` must not incorporate future splits. The inverse-price signal uses this field directly,
 so a retrospectively split-adjusted close is not acceptable. The normalizer refuses to populate
 `raw_close` from `adjusted_close` by implicit fallback.
+
+Yahoo `Close` is preserved as `yahoo_close` and must not be copied into `raw_close` unless a future
+source-specific certification explicitly proves nominal semantics. `reconstructed_nominal_close` is a
+separate investigation field and must not silently replace `raw_close`.
 
 `total_return[date=t]` is the return from close `t-1` to close `t`. It may be provider-supplied or
 explicitly reconstructed, but the manifest must state which convention is used.

@@ -67,6 +67,7 @@ def compare_wisesheets_to_yahoo(
     yahoo = normalize_daily_panel(yahoo_panel).copy()
     wise = read_wisesheets_export(wisesheets_export) if isinstance(wisesheets_export, (str, Path)) else wisesheets_export
     yahoo["ticker"] = yahoo["ticker"].map(normalize_reported_symbol)
+    close_column = "yahoo_close" if "yahoo_close" in yahoo.columns else "raw_close"
     if "adjusted_close" not in yahoo.columns:
         yahoo["adjusted_close"] = pd.NA
     joined = yahoo.merge(wise, on=["date", "ticker"], how="outer", indicator=True)
@@ -76,12 +77,12 @@ def compare_wisesheets_to_yahoo(
             classification = "insufficient_data"
         else:
             differences = []
-            if pd.notna(row["wisesheets_close"]) and pd.notna(row["raw_close"]):
-                if abs(float(row["wisesheets_close"]) - float(row["raw_close"])) <= tolerance:
+            if pd.notna(row["wisesheets_close"]) and pd.notna(row[close_column]):
+                if abs(float(row["wisesheets_close"]) - float(row[close_column])) <= tolerance:
                     differences.append("close_agree")
-                elif abs(float(row["wisesheets_close"]) - float(row["raw_close"])) <= max(
+                elif abs(float(row["wisesheets_close"]) - float(row[close_column])) <= max(
                     tolerance,
-                    0.001 * float(row["raw_close"]),
+                    0.001 * float(row[close_column]),
                 ):
                     differences.append("close_rounding")
                 else:
@@ -115,16 +116,89 @@ def compare_wisesheets_to_yahoo(
     }
 
 
-def requested_wisesheets_test_pack() -> pd.DataFrame:
+def _event_window_rows(
+    events: pd.DataFrame,
+    *,
+    date_column: str,
+    ticker_column: str,
+    purpose_prefix: str,
+    limit: int,
+    days: int = 5,
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    if events is None or events.empty:
+        return rows
+    frame = events.copy()
+    if date_column not in frame.columns or ticker_column not in frame.columns:
+        return rows
+    frame[date_column] = pd.to_datetime(frame[date_column], errors="coerce")
+    frame = frame.dropna(subset=[date_column, ticker_column]).sort_values([date_column, ticker_column])
+    for item in frame.head(limit).itertuples(index=False):
+        event_date = pd.Timestamp(getattr(item, date_column))
+        ticker = normalize_reported_symbol(getattr(item, ticker_column))
+        start = event_date - pd.Timedelta(days=days)
+        end = event_date + pd.Timedelta(days=days)
+        rows.append(
+            {
+                "ticker": ticker,
+                "start_date": start.date().isoformat(),
+                "end_date": end.date().isoformat(),
+                "purpose": purpose_prefix,
+            }
+        )
+    return rows
+
+
+def requested_wisesheets_test_pack(
+    split_diagnostics: pd.DataFrame | None = None,
+    dividend_audit: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Return a small data-semantics export request pack, not a strategy sample."""
 
-    return pd.DataFrame(
-        [
-            {"ticker": "AAPL", "start_date": "2020-08-24", "end_date": "2020-09-04", "purpose": "4-for-1 split"},
-            {"ticker": "TSLA", "start_date": "2020-08-24", "end_date": "2020-09-04", "purpose": "5-for-1 split"},
-            {"ticker": "MSFT", "start_date": "2024-02-12", "end_date": "2024-02-23", "purpose": "ordinary dividend"},
-            {"ticker": "XOM", "start_date": "2024-02-07", "end_date": "2024-02-20", "purpose": "ordinary dividend"},
-            {"ticker": "META", "start_date": "2022-06-01", "end_date": "2022-06-15", "purpose": "ticker rename check"},
-            {"ticker": "TWTR", "start_date": "2022-10-20", "end_date": "2022-11-04", "purpose": "former constituent/delisting check"},
-        ]
-    )
+    rows = [
+        {"ticker": "AAPL", "start_date": "2020-08-24", "end_date": "2020-09-04", "purpose": "known 4-for-1 split"},
+        {"ticker": "TSLA", "start_date": "2020-08-24", "end_date": "2020-09-04", "purpose": "known 5-for-1 split"},
+        {"ticker": "MSFT", "start_date": "2024-02-12", "end_date": "2024-02-23", "purpose": "ordinary dividend"},
+        {"ticker": "XOM", "start_date": "2024-02-07", "end_date": "2024-02-20", "purpose": "ordinary dividend"},
+        {"ticker": "META", "start_date": "2022-06-01", "end_date": "2022-06-15", "purpose": "ticker rename check"},
+        {"ticker": "TWTR", "start_date": "2022-10-20", "end_date": "2022-11-04", "purpose": "former constituent/delisting check"},
+    ]
+    if split_diagnostics is not None and not split_diagnostics.empty:
+        for classification, limit in [
+            ("likely_back_adjusted", 12),
+            ("consistent_with_nominal", 12),
+            ("ambiguous", 13),
+        ]:
+            sample = split_diagnostics[split_diagnostics["classification"].eq(classification)]
+            rows.extend(
+                _event_window_rows(
+                    sample,
+                    date_column="split_date",
+                    ticker_column="ticker",
+                    purpose_prefix=f"Yahoo split audit {classification}",
+                    limit=limit,
+                )
+            )
+    if dividend_audit is not None and not dividend_audit.empty:
+        anomalies = dividend_audit[~dividend_audit["classification"].eq("candidate_adjusted_return_consistent")]
+        rows.extend(
+            _event_window_rows(
+                anomalies,
+                date_column="date",
+                ticker_column="ticker",
+                purpose_prefix="Yahoo dividend-return anomaly",
+                limit=12,
+            )
+        )
+        ordinary = dividend_audit[dividend_audit["classification"].eq("candidate_adjusted_return_consistent")]
+        rows.extend(
+            _event_window_rows(
+                ordinary,
+                date_column="date",
+                ticker_column="ticker",
+                purpose_prefix="ordinary Yahoo dividend cross-check",
+                limit=8,
+            )
+        )
+    out = pd.DataFrame(rows).drop_duplicates().sort_values(["ticker", "start_date", "purpose"]).reset_index(drop=True)
+    return out

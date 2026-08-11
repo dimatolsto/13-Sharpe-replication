@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
 
 from .normalize import normalize_security_master
-from .sp500_events import normalize_reported_symbol, yahoo_symbol_from_reported
+from .sp500_events import (
+    normalize_reported_symbol,
+    provisional_security_id_from_symbol_name,
+    yahoo_symbol_from_reported,
+)
 
 
 @dataclass(frozen=True)
@@ -36,9 +39,7 @@ def stable_security_id_from_event(symbol: str, company_name: str, source: str = 
     component so ticker reuse does not collapse unrelated issuers by default.
     """
 
-    ticker = normalize_reported_symbol(symbol) or "UNKNOWN"
-    name = re.sub(r"[^A-Z0-9]+", "-", str(company_name).upper()).strip("-")[:48] or "UNKNOWN"
-    return f"{source}:{ticker}:{name}"
+    return provisional_security_id_from_symbol_name(symbol, company_name, source=source)
 
 
 def build_security_master_from_event_ledger(events: pd.DataFrame, *, source: str = "open_reconstruction") -> pd.DataFrame:

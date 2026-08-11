@@ -51,6 +51,24 @@ def _normalize_yahoo_date(series: pd.Series) -> pd.Series:
     return dates.dt.normalize()
 
 
+def _drop_serialized_yfinance_ticker_row(frame: pd.DataFrame) -> pd.DataFrame:
+    """Drop the extra ticker-name row produced by CSV serializing yfinance MultiIndex columns."""
+
+    if "Date" not in frame.columns or frame.empty:
+        return frame
+    date_text = frame["Date"].astype("string").fillna("").str.strip()
+    ticker_header = date_text.eq("")
+    if not ticker_header.any():
+        return frame
+    non_date = [column for column in frame.columns if column != "Date"]
+    metadata_like = frame.loc[ticker_header, non_date].map(
+        lambda value: isinstance(value, str) and bool(value.strip())
+    ).all(axis=1)
+    if not metadata_like.any():
+        return frame
+    return frame.loc[~(ticker_header & metadata_like)].reset_index(drop=True)
+
+
 def normalize_yahoo_history(
     raw: pd.DataFrame,
     *,
@@ -60,19 +78,21 @@ def normalize_yahoo_history(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Convert a yfinance daily response into candidate normalized panel/actions.
 
-    Yahoo `Close` is mapped only as candidate raw close. Certification still requires split audits.
-    Missing observations are preserved; this function does not forward-fill prices or returns.
+    Yahoo `Close` is preserved as `yahoo_close` for raw-close investigation. It is not populated into
+    certified-field `raw_close`. Missing observations are preserved; this function does not
+    forward-fill prices or returns.
     """
 
     frame = _flatten_yahoo_columns(raw, source_symbol)
     if "Date" not in frame.columns:
         frame = frame.reset_index()
+    frame = _drop_serialized_yfinance_ticker_row(frame)
     rename = {
         "Date": "date",
         "Open": "open",
         "High": "high",
         "Low": "low",
-        "Close": "raw_close",
+        "Close": "yahoo_close",
         "Adj Close": "adjusted_close",
         "Volume": "volume",
         "Dividends": "dividend_cash",
@@ -87,6 +107,8 @@ def normalize_yahoo_history(
     out["ticker"] = ticker
     out["source_symbol"] = source_symbol or ticker
     out = out.sort_values("date").reset_index(drop=True)
+    out["raw_close"] = pd.NA
+    out["raw_close_source"] = "not_populated_yahoo_close_failed_split_audit"
     out["total_return"] = pd.to_numeric(out["adjusted_close"], errors="coerce").pct_change()
     panel_columns = [
         "date",
@@ -97,11 +119,13 @@ def normalize_yahoo_history(
         "open",
         "high",
         "low",
+        "yahoo_close",
         "adjusted_close",
         "volume",
         "dividend_cash",
         "split_factor",
         "source_symbol",
+        "raw_close_source",
     ]
     panel = normalize_daily_panel(out[[column for column in panel_columns if column in out.columns]], source="yahoo")
 
@@ -146,19 +170,23 @@ def yahoo_candidate_audit(panel: pd.DataFrame, corporate_actions: pd.DataFrame |
     p = normalize_daily_panel(panel)
     actions = normalize_corporate_actions(corporate_actions) if corporate_actions is not None and len(corporate_actions) else None
     report = validate_dataset(p, corporate_actions=actions)
-    split_audit = audit_split_raw_close(p, actions)
+    close_candidate = p.copy()
+    if "yahoo_close" in close_candidate.columns:
+        close_candidate["raw_close"] = close_candidate["yahoo_close"]
+    split_audit = audit_split_raw_close(close_candidate, actions)
     dividend_mismatches = 0
     dividend_checks = 0
     if actions is not None:
         dividends = actions[actions["event_type"].eq("cash_dividend")]
         enriched = p.sort_values(["security_id", "date"]).copy()
-        enriched["previous_raw_close"] = enriched.groupby("security_id")["raw_close"].shift()
+        close_column = "yahoo_close" if "yahoo_close" in enriched.columns else "raw_close"
+        enriched["previous_candidate_close"] = enriched.groupby("security_id")[close_column].shift()
         for div in dividends.itertuples(index=False):
             row = enriched[enriched["security_id"].eq(div.security_id) & enriched["date"].eq(div.date)]
-            if row.empty or pd.isna(row["previous_raw_close"].iloc[0]) or pd.isna(row["total_return"].iloc[0]):
+            if row.empty or pd.isna(row["previous_candidate_close"].iloc[0]) or pd.isna(row["total_return"].iloc[0]):
                 continue
             dividend_checks += 1
-            expected = (row["raw_close"].iloc[0] + div.dividend_cash) / row["previous_raw_close"].iloc[0] - 1.0
+            expected = (row[close_column].iloc[0] + div.dividend_cash) / row["previous_candidate_close"].iloc[0] - 1.0
             if abs(float(row["total_return"].iloc[0]) - float(expected)) > 0.03:
                 dividend_mismatches += 1
     return {
@@ -214,8 +242,11 @@ def record_yahoo_result(
     return out
 
 
-def pending_yahoo_symbols(state: pd.DataFrame) -> list[str]:
-    retryable = state["status"].isin(["pending", "failed_retryable"])
+def pending_yahoo_symbols(state: pd.DataFrame, *, include_permanent: bool = False) -> list[str]:
+    retryable_statuses = ["pending", "failed_retryable"]
+    if include_permanent:
+        retryable_statuses.append("failed_permanent")
+    retryable = state["status"].isin(retryable_statuses)
     return sorted(set(state.loc[retryable, "provider_symbol"].astype(str)))
 
 

@@ -78,6 +78,18 @@ def _apply_events(state: set[str], block: pd.DataFrame, diagnostics: dict[str, A
     return updated
 
 
+def _dedupe_diagnostic_records(records: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[tuple[str, str], ...]] = set()
+    deduped = []
+    for record in records:
+        key = tuple(sorted((str(k), str(v)) for k, v in record.items()))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(record)
+    return deduped
+
+
 def _state_on(
     events: pd.DataFrame,
     anchor_members: set[str],
@@ -180,4 +192,8 @@ def reconstruct_membership_from_change_events(
     )
     diagnostics["membership_rows"] = len(membership)
     diagnostics["unique_security_ids"] = int(membership["security_id"].nunique()) if len(membership) else 0
+    diagnostics["duplicate_additions"] = _dedupe_diagnostic_records(diagnostics["duplicate_additions"])
+    diagnostics["removals_without_active_member"] = _dedupe_diagnostic_records(
+        diagnostics["removals_without_active_member"]
+    )
     return ReconstructionResult(membership=membership, diagnostics=diagnostics)
