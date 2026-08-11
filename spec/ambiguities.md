@@ -53,3 +53,17 @@ The implementation must not silently resolve these items.
     close. Real snapshots still require empirical split/raw-close and total-return audits.
     WiseSheets remains unverified until an authoritative API/export schema and split probes prove
     semantics.
+17. **Wikipedia selected changes.** Wikipedia's S&P 500 change table is an event-discovery seed, not
+    an authoritative PIT membership database. Missing events can produce a plausible-looking but
+    wrong membership reconstruction. P3 must remain unverified or fail while material seed events are
+    not supported by primary, archived-primary, or high-quality contemporaneous fallback evidence.
+18. **Open-source effective sessions.** If an S&P release says "prior to the open", membership dates
+    are normalized with the XNYS calendar from `exchange-calendars==4.13.2`. UNKNOWN
+    effective-session timing remains explicitly uncertain and must block P3 certification until the
+    event evidence establishes before-open, after-close, or another defensible convention.
+19. **Yahoo ticker coverage.** Yahoo/yfinance is ticker-centric and may not resolve delisted,
+    renamed, or acquired former constituents. Missing Yahoo histories are acquisition failures, not
+    permission to drop historical members.
+20. **Yahoo adjusted-close returns.** `Adj Close` percentage returns are a candidate corporate-action
+    series only. They are not certified total returns until split, dividend, no-action, and terminal
+    diagnostics pass.

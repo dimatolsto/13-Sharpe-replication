@@ -55,6 +55,7 @@ def write_raw_acquisition_metadata(
     documentation_urls: list[str] | None = None,
     response_count: int | None = None,
     limitations: list[str] | None = None,
+    extra_metadata: dict[str, Any] | None = None,
     force: bool = False,
 ) -> dict[str, Any]:
     """Write immutable metadata for a raw acquisition directory.
@@ -80,6 +81,7 @@ def write_raw_acquisition_metadata(
         "file_hashes": _relative_file_hashes(root),
         "tool_git_commit_sha": _git_commit(),
         "limitations": limitations or [],
+        **(extra_metadata or {}),
     }
     write_json(metadata_path, payload)
     return payload

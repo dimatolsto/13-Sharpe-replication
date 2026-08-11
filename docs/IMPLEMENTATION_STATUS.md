@@ -99,3 +99,26 @@
   historical S&P 500 market dataset.
 - Phase 2A prepares source selection and acquisition validation, but still requires licensed CRSP,
   Norgate, or verified provider exports before a P3-certified real snapshot can be frozen.
+
+## Phase 2B — open-source reconstruction pipeline (implemented)
+
+- Added a canonical S&P 500 event-ledger parser for Wikipedia's selected-change table.
+  - Wikipedia rows are `WIKIPEDIA_SEED` and `UNVERIFIED` by default.
+  - Primary/archived/fallback evidence overlays record discrepancies instead of silently reconciling.
+- Added XNYS/NYSE trading-session effective-date normalization with `exchange-calendars==4.13.2`
+  for before-open, after-close, weekend, standard-holiday, Good Friday, and unscheduled-closure
+  cases. UNKNOWN timing remains a P3 blocker.
+- Added provisional security-identity helpers that avoid ticker-only IDs by default and expose ticker
+  rename/reuse diagnostics.
+- Added Yahoo/yfinance acquisition preparation:
+  - optional pinned `acquire` dependency only (`yfinance==1.5.1`);
+  - fixed raw settings `interval=1d`, `auto_adjust=False`, `back_adjust=False`, `repair=False`,
+    `actions=True`;
+  - resumable per-symbol status files;
+  - raw acquisition metadata records yfinance version and settings;
+  - fixture normalization for `Close`, `Adj Close`, dividends, and splits.
+- Added WiseSheets local-export parsing and Yahoo comparison. No WiseSheets REST API was invented.
+- Added deterministic CLI demos for Wikipedia parsing, event completeness, membership
+  reconstruction, Yahoo normalization/audit, WiseSheets comparison, and Yahoo acquisition planning.
+- No real immutable open-source snapshot was certified in this implementation pass.
+- No P0-P5 strategy performance was run in Phase 2B.

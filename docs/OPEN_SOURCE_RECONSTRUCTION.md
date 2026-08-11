@@ -1,0 +1,122 @@
+# Open-Source S&P 500 Reconstruction
+
+Access date: 2026-08-11
+
+Phase 2B adds a reproducible open/low-cost reconstruction pipeline. It does not certify Wikipedia as
+an authority, does not certify Yahoo `Close` by provider claim, and does not run strategy
+performance.
+
+## Source Hierarchy
+
+Membership evidence uses three tiers:
+
+1. `SP_PRIMARY`: S&P Global / S&P Dow Jones Indices announcements and current primary pages.
+2. `SP_ARCHIVE`: archived copies of S&P / Standard & Poor's primary announcements.
+3. `CONTEMPORANEOUS_FALLBACK`: Reuters, exchange announcements, company releases, or similar
+   contemporaneous evidence when a primary release cannot be recovered.
+
+Wikipedia's "Selected changes" table is `WIKIPEDIA_SEED`. It is an event-discovery index only. Seed
+events remain `UNVERIFIED` until a stronger evidence row supersedes them.
+
+Relevant public references:
+
+- https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
+- https://www.spglobal.com/spdji/en/indices/equity/sp-500/
+- https://press.spglobal.com/
+- https://web.archive.org/
+
+## Event Ledger
+
+The canonical event ledger is a table with one row per membership action:
+
+- `announcement_date`
+- `effective_date`
+- `effective_session`: `BEFORE_OPEN`, `AFTER_CLOSE`, `DATE_ONLY`, or `UNKNOWN`
+- `action`: `ADD` or `REMOVE`
+- `source_tier`
+- `verification_status`
+- factual ticker/name fields
+- source/archive URL and SHA-256 metadata fields
+
+The parser stores factual extraction and source links, not full release text. Evidence overlays keep
+discrepancies visible instead of silently reconciling them.
+
+## Effective Dates
+
+Membership eligibility is normalized to XNYS/NYSE exchange sessions using
+`exchange-calendars==4.13.2`:
+
+- before-open addition: eligible on that trading session;
+- before-open removal: last eligible date is the previous trading session;
+- after-close addition: first eligible date is the next trading session;
+- after-close removal: last eligible date is that session.
+
+Calendar logic is centralized in `src/sharpe_replication/data/trading_calendar.py` through
+`is_trading_session(date)`, `previous_session(date)`, and `next_session(date)`. Reconstructed
+membership diagnostics and snapshot manifests record the calendar package/version. UNKNOWN
+effective-session timing remains an explicit P3 blocker even if a provisional normalized date can be
+computed.
+
+## Yahoo Acquisition
+
+Yahoo Finance is an acquisition source only. The deterministic backtest never calls Yahoo.
+
+The raw acquisition settings are fixed as:
+
+```text
+interval="1d"
+auto_adjust=False
+back_adjust=False
+repair=False
+actions=True
+```
+
+`repair=False` is intentional because yfinance repair logic can alter historical values. `Close` and
+`Adj Close` are stored separately. `Close` is only a candidate raw close until split audits show it is
+consistent with nominal historical prices.
+
+The optional acquisition dependency is pinned as `yfinance==1.5.1`. Yahoo raw-acquisition metadata
+records both the installed yfinance version and the exact download settings.
+
+Official yfinance reference: https://ranaroussi.github.io/yfinance/reference/api/yfinance.download.html
+
+## Yahoo Limitations
+
+Yahoo is ticker-centric and can fail for delisted or renamed securities. Failures are acquisition
+facts, not rows to drop. The acquisition state records `pending`, `complete`, `partial`,
+`failed_retryable`, and `failed_permanent`.
+
+Ticker aliases must come from the reconstructed historical membership and security-master mapping.
+Fetching only current S&P 500 symbols would recreate survivorship bias.
+
+## Certification
+
+Open reconstruction is provisional until:
+
+- enough membership events are primary/archived/fallback verified;
+- unresolved gaps are immaterial and documented;
+- raw close passes multiple real split checks;
+- adjusted-close or reconstructed total returns pass split/dividend/no-action audits;
+- member-day join coverage and terminal-return checks pass;
+- stable identifiers are sufficient for the target experiment.
+
+No Phase 2B code weakens P2/P3 certification. If the open-source evidence remains incomplete, P3
+stays `FAIL` or `UNVERIFIED`.
+
+## Commands
+
+```bash
+uv run drift-replication data acquire-wikipedia-events --raw-dir data/raw/sp500_membership/wikipedia/<id>
+uv run drift-replication data parse-wikipedia-events --html data/raw/.../wikipedia_sp500.html --out data/raw/.../wikipedia_events.csv
+uv run drift-replication data verify-sp500-events --seed-events seed.csv --evidence-events evidence.csv --out verified.csv
+uv run drift-replication data event-completeness --events verified.csv --gaps-out gaps.csv
+uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json
+uv run drift-replication data plan-yahoo --aliases yahoo_aliases.csv --state-out yahoo_state.csv
+uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01
+uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out panel.csv --actions-out actions.csv
+uv run drift-replication data audit-yahoo --panel panel.csv --corporate-actions actions.csv
+uv run drift-replication data compare-wisesheets --yahoo-panel panel.csv --wisesheets-export wisesheets.csv
+```
+
+These commands are data/provenance tools. They do not compute strategy Sharpe, CAGR, wealth, or
+drawdown.

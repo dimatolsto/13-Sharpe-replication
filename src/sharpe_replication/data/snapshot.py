@@ -17,6 +17,7 @@ from .normalize import (
     normalize_security_master,
 )
 from .schema import CertificationReport, Status, ValidationReport
+from .trading_calendar import trading_calendar_metadata
 from .validation import validate_dataset
 
 DATASET_FILES = {
@@ -154,6 +155,7 @@ def write_snapshot(
         "raw_close_semantics": raw_close_semantics,
         "total_return_source": total_return_source,
         "normalization_version": normalization_version,
+        "membership_trading_calendar": trading_calendar_metadata() if member_frame is not None else None,
         "git_commit_sha": _git_commit(),
         "validation_status": validation.status.value,
         "certification_status": certification.status.value,

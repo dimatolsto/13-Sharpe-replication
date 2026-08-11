@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -9,9 +10,11 @@ import typer
 
 from .backtest import run_backtest
 from .config import load_experiment, load_strategy
+from .data.acquisition import write_raw_acquisition_metadata
 from .data.certification import certify_for_experiment, certify_report
-from .data.io import read_table
+from .data.io import read_table, write_json
 from .data.join_audit import audit_membership_price_join
+from .data.membership_reconstruction import reconstruct_membership_from_change_events
 from .data.normalize import (
     normalize_corporate_actions,
     normalize_daily_panel,
@@ -21,7 +24,37 @@ from .data.normalize import (
 )
 from .data.snapshot import hash_snapshot, inspect_snapshot, write_snapshot
 from .data.source_discovery import source_discovery_report
+from .data.sp500_events import (
+    event_completeness_report,
+    event_ledger_to_change_events,
+    gap_register_from_events,
+    merge_event_evidence,
+    parse_wikipedia_file,
+    read_event_ledger,
+    write_event_ledger,
+)
+from .data.trading_calendar import TradingCalendar
 from .data.validation import validate_dataset
+from .data.wisesheets_crosscheck import (
+    compare_wisesheets_to_yahoo,
+    read_wisesheets_export,
+    requested_wisesheets_test_pack,
+)
+from .data.yahoo_provider import (
+    YahooDownloadResult,
+    classify_yahoo_error,
+    download_yahoo_symbol,
+    initial_yahoo_acquisition_state,
+    pending_yahoo_symbols,
+    read_yahoo_history,
+    read_yahoo_state,
+    record_yahoo_result,
+    write_yahoo_settings,
+    write_yahoo_state,
+    yahoo_acquisition_summary,
+    yahoo_candidate_audit,
+    yahoo_provider_metadata,
+)
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
 app = typer.Typer(no_args_is_help=True)
@@ -56,6 +89,20 @@ def _parse_map(raw: str | None) -> dict[str, str] | None:
 
 def _load_optional(path: Path | None) -> pd.DataFrame | None:
     return _read_table(path) if path is not None and path.exists() else None
+
+
+def _write_table(path: Path, frame: pd.DataFrame) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.suffix.lower() == ".parquet":
+        frame.to_parquet(path, index=False)
+    elif path.suffix.lower() == ".csv":
+        frame.to_csv(path, index=False)
+    else:
+        raise typer.BadParameter(f"Unsupported output extension for {path}")
+
+
+def _safe_filename(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in value)
 
 
 def _load_snapshot_manifest(snapshot: Path) -> dict:
@@ -173,6 +220,257 @@ def data_discover_sources(
     )
     for item in payload["assessments"]:
         typer.echo(f"- {item['source_name']}: {item['recommendation']}")
+
+
+@data_app.command("acquire-wikipedia-events")
+def data_acquire_wikipedia_events(
+    raw_dir: Annotated[Path, typer.Option()],
+    source_url: Annotated[str, typer.Option()] = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+    timeout: Annotated[float, typer.Option()] = 30.0,
+    force: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Fetch the Wikipedia S&P 500 page as raw seed input and parse its change table."""
+    import httpx
+
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    html_path = raw_dir / "wikipedia_sp500.html"
+    if html_path.exists() and not force:
+        raise typer.BadParameter(f"Raw Wikipedia snapshot already exists: {html_path}")
+    response = httpx.get(source_url, timeout=timeout, follow_redirects=True)
+    response.raise_for_status()
+    html_path.write_text(response.text, encoding="utf-8")
+    metadata = write_raw_acquisition_metadata(
+        raw_dir,
+        provider="wikipedia",
+        request_type="sp500_membership_seed",
+        requested_date_range={"start": None, "end": None},
+        source_urls=[source_url],
+        documentation_urls=["https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"],
+        response_count=1,
+        limitations=["Wikipedia is an unverified event seed, not an authoritative PIT database."],
+        force=force,
+    )
+    events = parse_wikipedia_file(html_path, source_url=source_url)
+    event_path = raw_dir / "wikipedia_events.csv"
+    write_event_ledger(event_path, events)
+    _print_json({"raw_html": str(html_path), "event_ledger": str(event_path), "events": len(events), "metadata": metadata})
+
+
+@data_app.command("parse-wikipedia-events")
+def data_parse_wikipedia_events(
+    html: Annotated[Path, typer.Option(exists=True)],
+    source_url: Annotated[str, typer.Option()] = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+    out: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Parse a frozen Wikipedia HTML snapshot into an unverified S&P 500 event ledger."""
+    events = parse_wikipedia_file(html, source_url=source_url)
+    if out is not None:
+        write_event_ledger(out, events)
+    _print_json({"events": len(events), "wikipedia_seed_events": len(events), "out": str(out) if out else None})
+
+
+@data_app.command("verify-sp500-events")
+def data_verify_sp500_events(
+    seed_events: Annotated[Path, typer.Option(exists=True)],
+    evidence_events: Annotated[Path, typer.Option(exists=True)],
+    out: Annotated[Path, typer.Option()],
+    discrepancies_out: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Overlay primary/archived/fallback evidence rows on a seed event ledger."""
+    merged, discrepancies = merge_event_evidence(read_event_ledger(seed_events), read_event_ledger(evidence_events))
+    write_event_ledger(out, merged)
+    if discrepancies_out is not None:
+        _write_table(discrepancies_out, discrepancies)
+    _print_json({"events": len(merged), "discrepancies": len(discrepancies), "out": str(out)})
+
+
+@data_app.command("event-completeness")
+def data_event_completeness(
+    events: Annotated[Path, typer.Option(exists=True)],
+    gaps_out: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Report transparent event verification counts and unresolved primary-source gaps."""
+    ledger = read_event_ledger(events)
+    gaps = gap_register_from_events(ledger)
+    if gaps_out is not None:
+        _write_table(gaps_out, gaps)
+    _print_json(event_completeness_report(ledger, gaps))
+
+
+def _anchor_members(path: Path) -> list[str]:
+    frame = _read_table(path)
+    column = "security_id" if "security_id" in frame.columns else frame.columns[0]
+    return [str(value) for value in frame[column].dropna()]
+
+
+@data_app.command("reconstruct-membership")
+def data_reconstruct_membership(
+    events: Annotated[Path, typer.Option(exists=True)],
+    anchor_members: Annotated[Path, typer.Option(exists=True)],
+    anchor_date: Annotated[str, typer.Option()],
+    start_date: Annotated[str, typer.Option()],
+    end_date: Annotated[str, typer.Option()],
+    out: Annotated[Path, typer.Option()],
+    include_unverified: Annotated[bool, typer.Option()] = False,
+    metadata_out: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Reconstruct PIT membership from event ledger plus an explicit anchor set."""
+    calendar = TradingCalendar.xnys()
+    change_events = event_ledger_to_change_events(
+        read_event_ledger(events),
+        calendar=calendar,
+        include_unverified=include_unverified,
+    )
+    result = reconstruct_membership_from_change_events(
+        change_events,
+        anchor_date=anchor_date,
+        anchor_members=_anchor_members(anchor_members),
+        start_date=start_date,
+        end_date=end_date,
+        source="open_reconstruction",
+        calendar=calendar,
+    )
+    _write_table(out, result.membership)
+    if metadata_out is not None:
+        write_json(metadata_out, result.to_dict())
+    _print_json({"out": str(out), **result.to_dict()})
+
+
+@data_app.command("plan-yahoo")
+def data_plan_yahoo(
+    aliases: Annotated[Path, typer.Option(exists=True)],
+    state_out: Annotated[Path, typer.Option()],
+) -> None:
+    """Create a resumable Yahoo acquisition state file from date-aware symbol aliases."""
+    state = initial_yahoo_acquisition_state(_read_table(aliases))
+    write_yahoo_state(state_out, state)
+    _print_json(yahoo_acquisition_summary(state))
+
+
+@data_app.command("acquire-yahoo")
+def data_acquire_yahoo(
+    state: Annotated[Path, typer.Option(exists=True)],
+    raw_dir: Annotated[Path, typer.Option()],
+    start_date: Annotated[str, typer.Option()],
+    end_date: Annotated[str | None, typer.Option()] = None,
+    max_symbols: Annotated[int, typer.Option()] = 0,
+    retry_attempts: Annotated[int, typer.Option(min=1)] = 3,
+    retry_sleep: Annotated[float, typer.Option(min=0.0)] = 1.0,
+    dry_run: Annotated[bool, typer.Option()] = False,
+    force: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Download pending Yahoo histories into a raw cache and update acquisition state.
+
+    The command uses the fixed forensic yfinance settings in yahoo_provider.py. Tests exercise this
+    through mocks/local fixtures; live network acquisition is operator-run only.
+    """
+    state_frame = read_yahoo_state(state)
+    symbols = pending_yahoo_symbols(state_frame)
+    if max_symbols > 0:
+        symbols = symbols[:max_symbols]
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    write_yahoo_settings(raw_dir / "settings.json")
+    if dry_run:
+        _print_json({"dry_run": True, "symbols_to_acquire": symbols, **yahoo_acquisition_summary(state_frame)})
+        return
+
+    acquired = 0
+    skipped_cached = 0
+    for symbol in symbols:
+        raw_path = raw_dir / f"{_safe_filename(symbol)}.csv"
+        if raw_path.exists() and not force:
+            cached = pd.read_csv(raw_path)
+            state_frame = record_yahoo_result(
+                state_frame,
+                provider_symbol=symbol,
+                result=YahooDownloadResult(status="complete", rows=len(cached)),
+            )
+            write_yahoo_state(state, state_frame)
+            skipped_cached += 1
+            continue
+
+        result = YahooDownloadResult(status="failed_retryable", error="not attempted", retryable=True)
+        for attempt in range(retry_attempts):
+            try:
+                raw = download_yahoo_symbol(symbol, start=start_date, end=end_date)
+                if raw.empty:
+                    status, retryable = classify_yahoo_error("No data found for symbol")
+                    result = YahooDownloadResult(status=status, rows=0, error="No data found for symbol", retryable=retryable)
+                else:
+                    raw.reset_index().to_csv(raw_path, index=False)
+                    result = YahooDownloadResult(status="complete", rows=len(raw))
+                    acquired += 1
+                break
+            except (RuntimeError, OSError, ValueError) as exc:  # pragma: no cover - live acquisition path
+                status, retryable = classify_yahoo_error(str(exc))
+                result = YahooDownloadResult(status=status, rows=0, error=str(exc), retryable=retryable)
+                if not retryable or attempt == retry_attempts - 1:
+                    break
+                time.sleep(retry_sleep * (2**attempt))
+        state_frame = record_yahoo_result(state_frame, provider_symbol=symbol, result=result)
+        write_yahoo_state(state, state_frame)
+
+    metadata = write_raw_acquisition_metadata(
+        raw_dir,
+        provider="yahoo",
+        request_type="daily_history",
+        requested_date_range={"start": start_date, "end": end_date},
+        requested_symbols=symbols,
+        documentation_urls=["https://ranaroussi.github.io/yfinance/reference/api/yfinance.download.html"],
+        response_count=acquired + skipped_cached,
+        limitations=[
+            "Yahoo is ticker-centric and may not resolve delisted or renamed historical securities.",
+            "Close remains candidate raw_close until empirical split audits verify nominal semantics.",
+        ],
+        extra_metadata={"provider_metadata": yahoo_provider_metadata()},
+        force=True,
+    )
+    _print_json({"raw_dir": str(raw_dir), "acquired": acquired, "skipped_cached": skipped_cached, "metadata": metadata, **yahoo_acquisition_summary(state_frame)})
+
+
+@data_app.command("normalize-yahoo")
+def data_normalize_yahoo(
+    raw: Annotated[Path, typer.Option(exists=True)],
+    security_id: Annotated[str, typer.Option()],
+    ticker: Annotated[str, typer.Option()],
+    panel_out: Annotated[Path, typer.Option()],
+    actions_out: Annotated[Path, typer.Option()],
+    source_symbol: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    """Normalize a raw Yahoo/yfinance CSV or Parquet response without live network calls."""
+    panel, actions = read_yahoo_history(raw, security_id=security_id, ticker=ticker, source_symbol=source_symbol)
+    _write_table(panel_out, panel)
+    _write_table(actions_out, actions)
+    _print_json({"panel_rows": len(panel), "action_rows": len(actions), "panel_out": str(panel_out), "actions_out": str(actions_out)})
+
+
+@data_app.command("audit-yahoo")
+def data_audit_yahoo(
+    panel: Annotated[Path, typer.Option(exists=True)],
+    corporate_actions: Annotated[Path, typer.Option(exists=True)],
+) -> None:
+    """Audit candidate Yahoo Close/Adj Close/action semantics without certifying them by claim."""
+    _print_json(yahoo_candidate_audit(_read_table(panel), _read_table(corporate_actions)))
+
+
+@data_app.command("compare-wisesheets")
+def data_compare_wisesheets(
+    yahoo_panel: Annotated[Path, typer.Option(exists=True)],
+    wisesheets_export: Annotated[Path, typer.Option(exists=True)],
+) -> None:
+    """Compare local WiseSheets export values against Yahoo candidates without overriding either."""
+    wise = read_wisesheets_export(wisesheets_export)
+    _print_json(compare_wisesheets_to_yahoo(_read_table(yahoo_panel), wise))
+
+
+@data_app.command("wisesheets-test-pack")
+def data_wisesheets_test_pack(
+    out: Annotated[Path, typer.Option()],
+) -> None:
+    """Write a compact WiseSheets export request pack for data-semantics cross-checks."""
+    pack = requested_wisesheets_test_pack()
+    _write_table(out, pack)
+    _print_json({"out": str(out), "rows": len(pack)})
 
 
 @data_app.command("normalize")

@@ -14,6 +14,18 @@ Phase 2A adds source-discovery and acquisition-preparation artifacts. Source cap
 reported by `drift-replication data discover-sources`; raw acquisition directories can carry
 credential-redacted `metadata.json` files with SHA-256 hashes before normalization.
 
+Phase 2B adds an open-source reconstruction path:
+
+```text
+Wikipedia selected-change seed -> primary/archived/fallback evidence overlay
+    -> event completeness/gap register -> PIT membership reconstruction
+    -> date-aware Yahoo aliases -> Yahoo raw cache -> candidate normalized panel/actions
+    -> WiseSheets local-export cross-check -> validation/certification
+```
+
+Wikipedia is never treated as an authority. Yahoo and WiseSheets are acquisition/cross-check inputs;
+the deterministic backtest still consumes only normalized Parquet snapshots.
+
 ## Field Lineage
 
 The snapshot manifest records how provider fields map into normalized fields. Examples:
@@ -70,6 +82,34 @@ When membership is reconstructed from add/remove events, the Phase 2A helper tre
 effective at the start of the `effective_date`. A removal effective on date `D` is normalized to an
 inclusive `membership_end` of `D - 1 calendar day`. This is appropriate only for sources whose events
 are documented as effective prior to the open.
+
+Phase 2B reconstruction uses the XNYS/NYSE exchange calendar from
+`exchange-calendars==4.13.2`. In that mode, a before-open removal effective on `D` ends on the
+previous XNYS session, not the previous calendar day. An after-close addition starts on the next XNYS
+session. Reconstruction diagnostics and snapshot manifests record the calendar package/version.
+UNKNOWN effective-session timing remains a certification blocker even if a provisional normalized
+date can be computed.
+
+## Yahoo Finance
+
+Yahoo/yfinance acquisition must use:
+
+```text
+interval=1d
+auto_adjust=False
+back_adjust=False
+repair=False
+actions=True
+```
+
+`Close` is retained separately from `Adj Close`. `Close` is candidate raw close until empirical split
+audits classify it as nominal. Candidate total returns from `Adj Close` are recorded as
+`yahoo_adjusted_close` and remain uncertified until split, dividend, and no-action diagnostics pass.
+Raw Yahoo acquisition metadata records the pinned yfinance package version and the exact download
+settings.
+
+Per-symbol acquisition state files must preserve failed and partial symbols. Delisted/former
+constituents are not dropped merely because Yahoo cannot resolve them.
 
 ## Events And Delistings
 

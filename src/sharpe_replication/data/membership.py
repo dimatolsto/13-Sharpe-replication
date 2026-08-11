@@ -75,6 +75,17 @@ def validate_membership(
             row_count=int(bad_order.sum()),
         )
 
+    if "timing_uncertain" in m.columns:
+        uncertain = m["timing_uncertain"].fillna(False).astype(bool)
+        if uncertain.any():
+            report.add(
+                Severity.WARNING,
+                "unknown_effective_session_timing",
+                "Membership reconstruction depends on at least one event with unknown effective-session timing",
+                dataset="membership",
+                row_count=int(uncertain.sum()),
+            )
+
     if known_security_ids is not None:
         unknown = sorted(set(m["security_id"]) - known_security_ids)
         if unknown:

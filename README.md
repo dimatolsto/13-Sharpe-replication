@@ -68,6 +68,22 @@ uv run drift-replication data inspect data/normalized/dev-snapshot
 uv run drift-replication data certify data/normalized/dev-snapshot --experiment-id P3
 uv run drift-replication data wisesheets-capabilities
 uv run drift-replication data discover-sources
+uv run drift-replication data parse-wikipedia-events \
+  --html data/raw/sp500_membership/wikipedia/<id>/wikipedia_sp500.html \
+  --out data/raw/sp500_membership/wikipedia/<id>/wikipedia_events.csv
+uv run drift-replication data event-completeness --events data/raw/.../wikipedia_events.csv
+uv run drift-replication data reconstruct-membership \
+  --events data/raw/.../verified_events.csv \
+  --anchor-members data/raw/.../anchor_members.csv \
+  --anchor-date 2026-08-11 \
+  --start-date 2004-01-01 \
+  --end-date 2026-08-11 \
+  --out data/raw/.../membership.csv \
+  --metadata-out data/raw/.../membership_metadata.json
+uv run drift-replication data acquire-yahoo \
+  --state data/raw/yahoo/<id>/state.csv \
+  --raw-dir data/raw/yahoo/<id> \
+  --start-date 2003-10-01
 uv run drift-replication data audit-coverage \
   --panel data/normalized/dev-snapshot/daily_panel.parquet \
   --membership data/normalized/dev-snapshot/membership.parquet
@@ -118,6 +134,11 @@ Phase 2A source discovery is documented in `docs/REAL_DATA_SOURCES.md`. No real 
 has been certified yet; CRSP/WRDS or Norgate are the current documented defensible paths if licensed,
 while WiseSheets remains a local-export/provisional source until its raw-close and API semantics are
 proved.
+
+Phase 2B open-source reconstruction tooling is documented in
+`docs/OPEN_SOURCE_RECONSTRUCTION.md` and `docs/WISESHEETS_EXPORT_WORKFLOW.md`. Wikipedia is treated
+only as an event seed, Yahoo Finance is an acquisition source only, and WiseSheets exports are
+cross-checks only. P4/P5 performance has not been run.
 
 ## Architecture
 

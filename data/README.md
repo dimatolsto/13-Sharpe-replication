@@ -40,10 +40,25 @@ uv run drift-replication data hash data/normalized/dev-snapshot
 uv run drift-replication data certify data/normalized/dev-snapshot --experiment-id P3
 uv run drift-replication data wisesheets-capabilities
 uv run drift-replication data discover-sources
+uv run drift-replication data acquire-wikipedia-events --raw-dir data/raw/sp500_membership/wikipedia/<id>
+uv run drift-replication data parse-wikipedia-events --html data/raw/.../wikipedia_sp500.html --out data/raw/.../wikipedia_events.csv
+uv run drift-replication data verify-sp500-events --seed-events seed.csv --evidence-events evidence.csv --out verified.csv
+uv run drift-replication data event-completeness --events verified.csv --gaps-out gaps.csv
+uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json
+uv run drift-replication data plan-yahoo --aliases yahoo_aliases.csv --state-out yahoo_state.csv
+uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01
+uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out yahoo_panel.csv --actions-out yahoo_actions.csv
+uv run drift-replication data audit-yahoo --panel yahoo_panel.csv --corporate-actions yahoo_actions.csv
+uv run drift-replication data compare-wisesheets --yahoo-panel yahoo_panel.csv --wisesheets-export wisesheets_export.csv
 uv run drift-replication data audit-coverage \
   --panel data/normalized/dev-snapshot/daily_panel.parquet \
   --membership data/normalized/dev-snapshot/membership.parquet
 ```
+
+Phase 2B open-source commands are staged acquisition tools. They do not run P0-P5 or compute
+strategy performance. Wikipedia events are unverified seeds until superseded by primary, archived
+primary, or fallback evidence. Yahoo `Close` is candidate raw close only until split audits certify
+nominal behavior.
 
 ## Daily Security Panel
 
@@ -79,10 +94,12 @@ One row per S&P 500 membership spell, sorted by `security_id, membership_start, 
 | `security_id` | stable identifier present in the panel/security master |
 | `membership_start` | first eligible signal date |
 | `membership_end` | last eligible signal date, inclusive; null means ongoing |
+| `timing_uncertain` | optional flag set by provisional reconstructions when event effective-session timing is unknown |
 
 Multiple non-overlapping spells for the same security are valid. Overlapping spells, duplicate
 spells, invalid dates, and references to unknown securities fail validation. The engine uses
-`membership_start <= signal_date <= membership_end`.
+`membership_start <= signal_date <= membership_end`. UNKNOWN effective-session timing remains a P3
+certification blocker even when a provisional membership spell can be materialized.
 
 ## Security Master
 

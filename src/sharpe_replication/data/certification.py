@@ -115,7 +115,12 @@ def certify_report(
             total_return_source,
         ),
         "stable_identifiers_sufficient": Status.PASS
-        if security_master_present and not _has_any(validation_report, "unknown_membership_security_id")
+        if security_master_present
+        and not _has_any(
+            validation_report,
+            "unknown_membership_security_id",
+            "stable_identifier_unverified",
+        )
         else Status.UNVERIFIED,
         "pit_membership_available": Status.PASS if membership_present else Status.FAIL,
         "survivorship_bias_checks_passed": Status.PASS
@@ -134,6 +139,7 @@ def certify_report(
                 "membership_end_before_start",
                 "overlapping_membership_spell",
                 "multiple_open_membership_spells",
+                "unknown_effective_session_timing",
             )
         ),
         "missing_terminal_return_checks_passed": _status_from_bool(
