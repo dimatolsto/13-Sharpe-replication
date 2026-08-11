@@ -153,6 +153,15 @@ former-security member-day coverage has material gaps. A separate `reconstructed
 candidate exists for follow-up validation, but it is not certified. P0-P5 performance still has not
 been run.
 
+Phase 2D is documented in `docs/PHASE2D_MEMBERSHIP_RECONCILIATION.md`. It added a resumable
+membership-verification queue, source-artifact cache metadata, reconstruction-conservation audit,
+event-group report, explicit identity-lineage table, residual gap register, and manual-review queue.
+The bounded verification pass moved 14 Wikipedia seed events to primary verified with `BEFORE_OPEN`
+timing and found one additional 2004 replacement group supported by secondary contemporaneous
+evidence. The reconstructed member-count range remains 503 to 574 with median 543 because Phase 2D
+diagnosed, rather than mechanically repaired, the dominant provisional identity-alias failures.
+Membership certification remains `FAIL`, and P2/P3 remain blocked. No P0-P5 performance was run.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,

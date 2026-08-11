@@ -75,6 +75,24 @@ No immutable normalized snapshot was frozen because the data failed certificatio
 The candidate Yahoo panel and audits are useful forensic evidence only; they must not be used as a
 P2/P3 certified input.
 
+Phase 2D adds membership-only reconciliation reports under `reports/generated/phase2d/`:
+
+```bash
+uv run drift-replication data phase2d-membership-report \
+  --events data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_events.csv \
+  --anchor reports/generated/phase2c/wikipedia_current_anchor.csv \
+  --wikipedia-html data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_sp500.html \
+  --membership reports/generated/phase2c/provisional_membership.csv \
+  --yahoo-state reports/generated/phase2c/yahoo_state.csv
+```
+
+The command is data-only. It writes a resumable verification queue, row-level reconstruction
+conservation audit, event groups, identity lineages, residual gaps, manual review queue, and Yahoo
+plan delta. Source artifacts fetched during bounded verification are cached under gitignored
+`data/raw/sp500_membership/phase2d_source_cache/` with URL, retrieval time, SHA-256, and linked event
+metadata. Phase 2D found 14 primary-verified seed events and two additional 2004 secondary events,
+but membership remains uncertified because most events and identities remain unresolved.
+
 ## Daily Security Panel
 
 One row per `(date, security_id)`, sorted by `date, security_id`.

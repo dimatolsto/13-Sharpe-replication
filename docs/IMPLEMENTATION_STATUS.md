@@ -157,3 +157,23 @@
   certification.
 - See `docs/PHASE2C_REAL_RECONSTRUCTION.md` for detailed counts and local generated report paths.
 - No P0-P5 strategy performance was run in Phase 2C.
+
+## Phase 2D — membership reconciliation and identity audit (executed)
+
+- Added `drift-replication data phase2d-membership-report`, a data-only command that consumes the
+  Phase 2C seed ledger, anchor, membership, raw Wikipedia HTML, and optional Yahoo state.
+- Extracted real Wikipedia citation footnote targets into a persistent verification queue.
+- Fetched and cached 30 candidate source artifacts with URL, retrieval time, SHA-256, source tier,
+  and linked event IDs.
+- Improved event verification from zero to 14 primary-verified seed events; all 14 have
+  `BEFORE_OPEN` timing extracted from S&P Global press releases.
+- Found one additional 2004 S&P 500 replacement group from secondary contemporaneous evidence:
+  E*TRADE Financial added and FleetBoston Financial removed after close on 2004-03-31.
+- Added row-level reconstruction-conservation reports. The 503-574 member-count inflation is now
+  decomposed as mainly provisional identity-alias duplication, not ordinary share-class variation.
+- Added explicit identity-lineage, identity-ambiguity, reentry-review, residual-gap, manual-review,
+  anchor-comparison, historical-snapshot-check, and Yahoo-plan-delta report outputs.
+- Membership remains `FAIL`: 723 seed events remain unresolved/UNKNOWN timing, the anchor is still
+  provisional, 232 identity ambiguity rows remain, and 2004 primary/archive evidence is incomplete.
+- P2 remains `FAIL` from Phase 2C raw-close findings, so overall P3 cannot pass.
+- No P0-P5 strategy performance was run in Phase 2D.

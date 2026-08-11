@@ -125,6 +125,27 @@ factors into earlier Yahoo `Close` observations. It preserves Yahoo `Close` unch
 split-adjustment multiplier, and remains uncertified until an independent source such as a
 WiseSheets export supports the reconstructed historical prices.
 
+## Phase 2D Membership Evidence
+
+Phase 2D adds a membership-only provenance layer. The command
+`drift-replication data phase2d-membership-report` reads Phase 2C artifacts and writes local reports
+under `reports/generated/phase2d/`.
+
+The command extracts Wikipedia footnote target URLs from the frozen raw HTML, creates a resumable
+verification queue, and caches bounded source fetches under
+`data/raw/sp500_membership/phase2d_source_cache/`. Each cached artifact has metadata for original
+URL, final URL, retrieval time, SHA-256, source tier, HTTP status, and linked event IDs. Cached
+press releases are raw provenance material and remain gitignored.
+
+Phase 2D verified 14 seed events against live S&P Global primary press releases and extracted
+`BEFORE_OPEN` timing. It also recorded one additional 2004 replacement group from secondary
+contemporaneous evidence. This improves evidence coverage but does not certify the event ledger:
+723 seed events still lack primary/archive/fallback verification and effective-session timing.
+
+The phase also writes machine-readable identity lineages and reconstruction-conservation reports.
+Those reports are evidence registers, not hidden code overrides. They do not merge securities, force
+counts to 500, or change strategy inputs.
+
 ## Events And Delistings
 
 Corporate actions are retained as event rows when the source provides them. Missing event coverage is
