@@ -190,6 +190,16 @@ survivorship-biased Sharpe over 2010-2024 was 0.02. Phase 3 does not change Phas
 certification: Yahoo Close remains failed as nominal raw close, reconstructed nominal close remains
 candidate-only, and true PIT membership work remains deferred.
 
+Phase 3B is documented in `docs/PHASE3B_REPRODUCTION_GAP.md`. It keeps the Phase 3 data frozen and
+forensically audits why R0 still cannot reproduce the paper. The Phase 3 baseline reproduced exactly,
+but the exact legacy R0 path was found to include current-day reversal/regime windows; a paper-spec
+prior-window R0 is weaker, with selected-window Sharpe 0.65 versus paper values near 13 combined.
+Invalid leakage diagnostics, including lag0 return alignment, current-day reversal, current-day
+regime, and regime lead/lag scans, do not approach the paper's reported Sharpe. The pass also
+documents internal fingerprint contradictions around active stock-days, position counts, and gross
+exposure normalization. No parameters were optimized, no PIT membership work was resumed, and no
+Yahoo redownload was run.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,

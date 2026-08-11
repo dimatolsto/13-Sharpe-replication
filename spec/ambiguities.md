@@ -4,9 +4,16 @@ The implementation must not silently resolve these items.
 
 1. **Nominal price direction.** The paper describes inverse price converted to percentile rank. We
    define larger `1 / raw_close` as a larger value score.
-2. **Reversal return convention.** We define a 10-session total return ending on signal date `t`.
-3. **63-day up-fraction window.** We include the daily total return ending on signal date `t` and the
-   preceding 62 returns. This is one declared interpretation and is covered by tests.
+2. **Reversal return convention.** The paper says trailing 10-day return but does not give an
+   equation comparable to the regime definition. Phase 3 legacy code used a 10-session total return
+   ending on signal date `t`; Phase 3B also reports a prior-10-session interpretation excluding
+   current return `t`. Endpoint prior-10 and compounded prior-10 match numerically on the Phase 3
+   panel, while current-day reversal leakage remains an invalid diagnostic only.
+3. **63-day up-fraction window.** The paper equation defines
+   `UpFraction[t] = (1/63) * sum_{k=1..63} I(return[t-k] > 0)`, excluding current return `t`. Phase 3
+   legacy code instead rolled through signal date `t`; Phase 3B preserves that exact result as a
+   legacy/invalid paper-equation fingerprint and separately reports the paper-spec prior-window
+   variant. Future production changes to this convention must be versioned and rerun consistently.
 4. **Second standardization.** The paper states valid non-zero EDGE values are standardized again.
    We z-score only active names, then take positive scores long and negative scores short.
 5. **Side weighting.** The paper says normalize each side but does not give the exact rule. We use
@@ -130,3 +137,16 @@ The implementation must not silently resolve these items.
     replication/data/implementation discrepancy under the repository's frozen interpretation. It
     does not prove intent, and future author code/data or a different vendor feed could explain part
     of the difference.
+37. **Phase 3B invalid diagnostics are not strategy variants.** Current-day regime, current-day
+    reversal, lag0 return matching, negative return offsets, and future regime offsets are labeled
+    invalid forensic diagnostics. They exist only to test whether an implementation/alignment bug can
+    explain the reproduction gap. They must not be promoted into experiment YAMLs or described as
+    tradable.
+38. **Paper fingerprint contradiction remains unresolved.** The paper's stated 35% active stock-days
+    implies roughly 175 active names out of 500, while the paper also reports about 187 long and 189
+    short positions. Under the stated non-zero EDGE-only portfolio construction, those fingerprints
+    cannot all describe the same portfolio without trading inactive names.
+39. **Gross-exposure shrink narrative is not implied by side normalization.** The specified
+    `+50%/-50%` side normalization keeps gross exposure near 100% when both sides exist. A smaller
+    regime-active name count shrinks position count and increases concentration, not gross exposure,
+    unless an additional unreported exposure-scaling rule exists.

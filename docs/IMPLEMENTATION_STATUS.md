@@ -227,3 +227,36 @@
 - Phase 3 does not change certification: P2 raw-close remains `FAIL`, reconstructed nominal close
   remains candidate-only pending independent validation, PIT membership remains deferred, and overall
   P3 cannot pass.
+
+## Phase 3B — reproduction-gap forensics (executed)
+
+- Added `drift-replication phase3b-reproduction-gap`, a report-only diagnostic command that verifies
+  the frozen Phase 3 input manifest and writes compact local artifacts under
+  `reports/generated/phase3b/`.
+- Reproduced the Phase 3 baseline exactly before running diagnostics: R0/R1/R2/R3 unscaled Sharpes
+  matched the Phase 3 summary to zero reported numerical error.
+- Audited the Phase 3 legacy R0 signal path and found that the existing rolling reversal and regime
+  windows end on signal date `t`. The paper's explicit regime equation excludes current return `t`,
+  so Phase 3B preserves exact legacy R0 as an invalid paper-equation fingerprint and separately
+  reports a paper-spec prior-window R0 variant.
+- Paper-spec R0 remains far below the paper: selected-window Sharpe is 0.65 combined, with 2010,
+  2015, and 2020 test Sharpes of 1.03, -0.17, and 0.92. Paper-reported test Sharpes are 16.89,
+  22.87, and 5.11.
+- Training-period Sharpes are also low under paper-spec R0: 0.80, 0.65, and 0.46 versus paper
+  training Sharpes of 19.42, 27.79, and 16.63. This points to a fundamental reproduction/data/spec
+  gap, not merely weak OOS walk-forward behavior.
+- Invalid diagnostics do not explain the gap. Current-day reversal reaches 0.98 selected-window
+  Sharpe, current-day regime reaches 0.46, lag0 contemporaneous return is strongly negative
+  (-7.75), and the strongest invalid future-regime offset reaches only 1.29.
+- Fingerprint audits show that the paper's stated 35% active stock-days cannot naturally coexist
+  with roughly 187 long plus 189 short positions if the algorithm trades only valid non-zero EDGE
+  names. Under paper-spec R0, selected-window positioned names average about 40, 32, and 60 in 2010,
+  2015, and 2020.
+- EDGE standardization alternatives were tested as interpretation diagnostics, not strategies. The
+  inactive-zero z-score variant trades hundreds of inactive names and still reaches only 0.97
+  selected-window Sharpe, while contradicting the paper's non-zero EDGE rule.
+- Phase 3B classification is `MULTIPLE: DATA_SOURCE_DIFFERENCE + PAPER_INTERNAL_INCONSISTENCY`.
+  This is not evidence of intent; it is a bounded forensic reproduction gap under the repository's
+  frozen survivorship-biased Phase 3 inputs.
+- No strategy parameters were changed, no PIT membership work was resumed, no full Yahoo redownload
+  occurred, and no P4/P5 runs were performed.

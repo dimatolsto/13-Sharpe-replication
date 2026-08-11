@@ -67,6 +67,7 @@ from .data.yahoo_provider import (
     yahoo_provider_metadata,
 )
 from .phase3_attribution import SURVIVORSHIP_LABEL, write_phase3_reports
+from .phase3b_reproduction_gap import PHASE3B_LABEL, write_phase3b_reports
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
 app = typer.Typer(no_args_is_help=True)
@@ -235,6 +236,32 @@ def phase3_attribution(
             "phase3_only_no_pit_membership_reconstruction": summary[
                 "phase3_only_no_pit_membership_reconstruction"
             ],
+        }
+    )
+
+
+@app.command("phase3b-reproduction-gap")
+def phase3b_reproduction_gap(
+    phase3_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3b"),
+) -> None:
+    """Run Phase 3B reproduction-gap forensics against the frozen Phase 3 inputs."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase3b_reports(
+        phase3_dir=phase3_dir,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "phase": PHASE3B_LABEL,
+            "out_dir": str(out_dir),
+            "survivorship_bias_label": summary["survivorship_bias_label"],
+            "baseline_reproduced": summary["baseline_reproduction"]["matched"],
+            "classification": summary["classification"],
+            "production_phase3_legacy_finding": summary["production_phase3_legacy_finding"],
         }
     )
 
