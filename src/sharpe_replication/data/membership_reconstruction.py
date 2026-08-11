@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import date
+from itertools import pairwise
+from typing import Any
+
+import pandas as pd
+
+from .normalize import normalize_membership
+
+
+@dataclass
+class ReconstructionResult:
+    membership: pd.DataFrame
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "membership_rows": len(self.membership),
+            "unique_security_ids": int(self.membership["security_id"].nunique()) if len(self.membership) else 0,
+            "diagnostics": self.diagnostics,
+        }
+
+
+def _normalize_events(events: pd.DataFrame) -> pd.DataFrame:
+    required = {"effective_date", "security_id", "action"}
+    missing = required - set(events.columns)
+    if missing:
+        raise ValueError(f"Change events missing required columns: {sorted(missing)}")
+    out = events.copy()
+    out["effective_date"] = pd.to_datetime(out["effective_date"]).dt.normalize()
+    out["security_id"] = out["security_id"].astype(str)
+    out["action"] = out["action"].astype(str).str.lower().str.strip()
+    aliases = {
+        "add": "addition",
+        "added": "addition",
+        "addition": "addition",
+        "delete": "removal",
+        "deleted": "removal",
+        "deletion": "removal",
+        "remove": "removal",
+        "removed": "removal",
+        "removal": "removal",
+    }
+    out["action"] = out["action"].map(aliases).fillna(out["action"])
+    invalid = sorted(set(out["action"]) - {"addition", "removal"})
+    if invalid:
+        raise ValueError(f"Unsupported membership actions: {invalid}")
+    if "announcement_date" in out.columns:
+        out["announcement_date"] = pd.to_datetime(out["announcement_date"]).dt.normalize()
+    return out.sort_values(["effective_date", "action", "security_id"]).reset_index(drop=True)
+
+
+def _apply_events(state: set[str], block: pd.DataFrame, diagnostics: dict[str, Any]) -> set[str]:
+    updated = set(state)
+    for row in block.itertuples(index=False):
+        security_id = str(row.security_id)
+        if row.action == "addition":
+            if security_id in updated:
+                diagnostics["duplicate_additions"].append(
+                    {"date": row.effective_date.date().isoformat(), "security_id": security_id}
+                )
+            updated.add(security_id)
+        elif row.action == "removal":
+            if security_id not in updated:
+                diagnostics["removals_without_active_member"].append(
+                    {"date": row.effective_date.date().isoformat(), "security_id": security_id}
+                )
+            updated.discard(security_id)
+    return updated
+
+
+def _state_on(
+    events: pd.DataFrame,
+    anchor_members: set[str],
+    anchor_date: pd.Timestamp,
+    as_of: pd.Timestamp,
+    diagnostics: dict[str, Any],
+) -> set[str]:
+    state = set(anchor_members)
+    if as_of >= anchor_date:
+        future = events[(events["effective_date"] > anchor_date) & (events["effective_date"] <= as_of)]
+        for _, block in future.groupby("effective_date", sort=True):
+            state = _apply_events(state, block, diagnostics)
+        return state
+
+    reverse = events[(events["effective_date"] > as_of) & (events["effective_date"] <= anchor_date)].copy()
+    reverse["action"] = reverse["action"].map({"addition": "removal", "removal": "addition"})
+    for _, block in reverse.sort_values(["effective_date"], ascending=False).groupby("effective_date", sort=False):
+        state = _apply_events(state, block, diagnostics)
+    return state
+
+
+def reconstruct_membership_from_change_events(
+    events: pd.DataFrame,
+    *,
+    anchor_date: date | str | pd.Timestamp,
+    anchor_members: set[str] | list[str],
+    start_date: date | str | pd.Timestamp,
+    end_date: date | str | pd.Timestamp,
+    source: str = "change_events",
+) -> ReconstructionResult:
+    """Reconstruct inclusive membership spells from effective-date add/remove events.
+
+    Events are interpreted as effective at the start of `effective_date`. Therefore a removal on
+    date D means the prior spell ends on D - 1 calendar day. This is the repository's explicit
+    daily-bar convention for public S&P announcements that state "prior to the open".
+    """
+
+    normalized_events = _normalize_events(events)
+    anchor_ts = pd.Timestamp(anchor_date).normalize()
+    start_ts = pd.Timestamp(start_date).normalize()
+    end_ts = pd.Timestamp(end_date).normalize()
+    if end_ts < start_ts:
+        raise ValueError("end_date precedes start_date")
+
+    diagnostics: dict[str, Any] = {
+        "anchor_date": anchor_ts.date().isoformat(),
+        "start_date": start_ts.date().isoformat(),
+        "end_date": end_ts.date().isoformat(),
+        "effective_date_interpretation": "effective at start of date; removals end on previous calendar day",
+        "event_count": len(normalized_events),
+        "duplicate_additions": [],
+        "removals_without_active_member": [],
+    }
+
+    event_dates = set(normalized_events["effective_date"])
+    boundaries = sorted({start_ts, end_ts + pd.Timedelta(days=1), *(d for d in event_dates if start_ts <= d <= end_ts)})
+    intervals: list[tuple[pd.Timestamp, pd.Timestamp, set[str]]] = []
+    anchor_set = {str(member) for member in anchor_members}
+    for left, right in pairwise(boundaries):
+        interval_end = right - pd.Timedelta(days=1)
+        if interval_end < start_ts or left > end_ts:
+            continue
+        state = _state_on(normalized_events, anchor_set, anchor_ts, left, diagnostics)
+        intervals.append((left, min(interval_end, end_ts), state))
+
+    spells: dict[str, list[list[pd.Timestamp]]] = {}
+    for start, end, state in intervals:
+        for security_id in sorted(state):
+            blocks = spells.setdefault(security_id, [])
+            if blocks and start <= blocks[-1][1] + pd.Timedelta(days=1):
+                blocks[-1][1] = end
+            else:
+                blocks.append([start, end])
+
+    rows = [
+        {
+            "security_id": security_id,
+            "membership_start": start,
+            "membership_end": end,
+            "source": source,
+        }
+        for security_id, blocks in sorted(spells.items())
+        for start, end in blocks
+    ]
+    membership = normalize_membership(pd.DataFrame(rows)) if rows else pd.DataFrame(
+        columns=["security_id", "membership_start", "membership_end", "source", "source_security_id"]
+    )
+    diagnostics["membership_rows"] = len(membership)
+    diagnostics["unique_security_ids"] = int(membership["security_id"].nunique()) if len(membership) else 0
+    return ReconstructionResult(membership=membership, diagnostics=diagnostics)

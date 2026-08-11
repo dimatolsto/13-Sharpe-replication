@@ -45,3 +45,11 @@ The implementation must not silently resolve these items.
     delisting/acquisition events but does not invent CRSP-style delisting returns. P3-P5
     certification fails when a security disappears while still a member or its final observed return
     is missing.
+15. **Membership change-event timing.** Phase 2A reconstruction treats add/remove events as
+    effective at the start of `effective_date`; a removal effective on `D` becomes an inclusive
+    `membership_end` of `D - 1 calendar day`. This must be used only for sources documented as
+    prior-to-open effective changes.
+16. **Source capability evidence.** Provider documentation is not enough to certify raw nominal
+    close. Real snapshots still require empirical split/raw-close and total-return audits.
+    WiseSheets remains unverified until an authoritative API/export schema and split probes prove
+    semantics.
