@@ -42,6 +42,10 @@ identifiers, survivorship checks, valid membership intervals, and terminal-retur
 Phase 1 has not run P4 or P5 performance. The purpose of the new pipeline is to make a later P0 ->
 P1 -> P2 -> P3 -> P4 -> P5 sequence defensible before any headline Sharpe is inspected.
 
+Phase 2A did not certify a real snapshot. CRSP/WRDS and Norgate are documented as likely
+P3-capable paths if licensed and empirically audited. WiseSheets remains `UNVERIFIED` for raw-close,
+total-return, delisted-security, stable-ID, and PIT-membership suitability.
+
 ## Split Audit
 
 For each known N-for-1 split, the split audit compares the previous nominal close to the split-day

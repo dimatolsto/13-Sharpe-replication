@@ -25,6 +25,26 @@ Raw and normalized market datasets are intentionally not committed. A snapshot d
 immutable by default; attempting to normalize into an existing directory fails unless `--force` is
 used for a non-certified development snapshot.
 
+## Data CLI
+
+The data commands are acquisition/provenance tools and do not compute strategy performance:
+
+```bash
+uv run drift-replication data normalize data/normalized/dev-snapshot \
+  --daily-source /path/to/daily.csv \
+  --daily-map '{"source_date":"date","source_security_id":"security_id","source_ticker":"ticker","source_close":"raw_close","source_return":"total_return"}'
+
+uv run drift-replication data validate --panel data/normalized/dev-snapshot/daily_panel.parquet
+uv run drift-replication data inspect data/normalized/dev-snapshot
+uv run drift-replication data hash data/normalized/dev-snapshot
+uv run drift-replication data certify data/normalized/dev-snapshot --experiment-id P3
+uv run drift-replication data wisesheets-capabilities
+uv run drift-replication data discover-sources
+uv run drift-replication data audit-coverage \
+  --panel data/normalized/dev-snapshot/daily_panel.parquet \
+  --membership data/normalized/dev-snapshot/membership.parquet
+```
+
 ## Daily Security Panel
 
 One row per `(date, security_id)`, sorted by `date, security_id`.

@@ -10,6 +10,10 @@ external provider -> raw immutable snapshot -> normalization -> validation/certi
 The deterministic engine consumes normalized Parquet. It must not call WiseSheets or any other
 provider during portfolio calculations.
 
+Phase 2A adds source-discovery and acquisition-preparation artifacts. Source capabilities are
+reported by `drift-replication data discover-sources`; raw acquisition directories can carry
+credential-redacted `metadata.json` files with SHA-256 hashes before normalization.
+
 ## Field Lineage
 
 The snapshot manifest records how provider fields map into normalized fields. Examples:
@@ -34,6 +38,11 @@ implemented in Phase 1. Public material available to the repo is ambiguous about
 available and a probe verifies split behavior, WiseSheets market-data capabilities remain
 `unverified`.
 
+Phase 2A found public WiseSheets spreadsheet-function documentation, but still no authoritative REST
+base URL, authentication scheme, historical price endpoint, or response schema suitable for a
+network adapter. The repository therefore keeps WiseSheets acquisition behind local exports or future
+documented adapter work.
+
 The only allowed credential mechanism is `WISESHEETS_API_KEY` in the environment. API keys must not
 be written to code, YAML, fixtures, docs, logs, or committed `.env` files.
 
@@ -56,6 +65,11 @@ membership_start <= signal_date <= membership_end
 Multiple non-overlapping spells are valid. A future constituent does not affect current
 cross-sectional ranks or weights, though its own pre-entry price history may later be used for its
 time-series features after it becomes eligible.
+
+When membership is reconstructed from add/remove events, the Phase 2A helper treats event dates as
+effective at the start of the `effective_date`. A removal effective on date `D` is normalized to an
+inclusive `membership_end` of `D - 1 calendar day`. This is appropriate only for sources whose events
+are documented as effective prior to the open.
 
 ## Events And Delistings
 

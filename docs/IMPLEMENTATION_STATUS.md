@@ -57,6 +57,23 @@
 4. Obtain an independent point-in-time S&P 500 membership dataset with stable identifiers.
 5. Certify at least one real immutable snapshot before using it for P2-P5 results.
 
+## Phase 2A — real source discovery and acquisition preparation (implemented)
+
+- Added an offline source discovery matrix and CLI command:
+  - `drift-replication data discover-sources`
+- Added immutable raw-acquisition metadata hashing with credential/signed-query redaction.
+- Added deterministic S&P membership reconstruction support from add/remove change events using
+  effective-at-start-of-date semantics.
+- Added a membership-price join audit:
+  - `drift-replication data audit-coverage`
+- Added `docs/REAL_DATA_SOURCES.md` with source findings and certification implications.
+- WiseSheets remains unverified for REST acquisition and raw `Close` semantics. No undocumented
+  endpoint was implemented.
+- No real P3-capable immutable snapshot was produced because the accessible sources reviewed did not
+  jointly satisfy raw-close, total-return, delisted coverage, stable-ID, and PIT membership
+  requirements.
+- No P0-P5 strategy performance was run in Phase 2A.
+
 ## Phase 2 — forensic P0-P3
 
 - Reproduce paper-style result on current constituents.
@@ -80,3 +97,5 @@
   authoritative account documentation. No API key is stored in the repository.
 - Phase 1 provides synthetic/local validation coverage only. It has not acquired or certified a real
   historical S&P 500 market dataset.
+- Phase 2A prepares source selection and acquisition validation, but still requires licensed CRSP,
+  Norgate, or verified provider exports before a P3-certified real snapshot can be frozen.

@@ -11,6 +11,7 @@ from .backtest import run_backtest
 from .config import load_experiment, load_strategy
 from .data.certification import certify_for_experiment, certify_report
 from .data.io import read_table
+from .data.join_audit import audit_membership_price_join
 from .data.normalize import (
     normalize_corporate_actions,
     normalize_daily_panel,
@@ -19,6 +20,7 @@ from .data.normalize import (
     normalize_security_master,
 )
 from .data.snapshot import hash_snapshot, inspect_snapshot, write_snapshot
+from .data.source_discovery import source_discovery_report
 from .data.validation import validate_dataset
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
@@ -152,6 +154,27 @@ def data_wisesheets_capabilities() -> None:
     _print_json(gate.report())
 
 
+@data_app.command("discover-sources")
+def data_discover_sources(
+    output_format: Annotated[str, typer.Option("--format")] = "json",
+) -> None:
+    """Report the offline Phase 2A source discovery matrix."""
+    payload = source_discovery_report()
+    if output_format == "json":
+        _print_json(payload)
+        return
+    if output_format != "text":
+        raise typer.BadParameter("--format must be json or text")
+    typer.echo("Phase 2A source discovery")
+    typer.echo(f"Access date: {payload['access_date']}")
+    typer.echo(
+        "Recommended defensible path: "
+        f"{payload['chosen_sources']['recommended_defensible_path']}"
+    )
+    for item in payload["assessments"]:
+        typer.echo(f"- {item['source_name']}: {item['recommendation']}")
+
+
 @data_app.command("normalize")
 def data_normalize(
     snapshot_dir: Annotated[Path, typer.Argument()],
@@ -237,6 +260,28 @@ def data_validate(
     payload = report.to_dict()
     _print_json(payload)
     if payload["status"] == "FAIL":
+        raise typer.Exit(1)
+
+
+@data_app.command("audit-coverage")
+def data_audit_coverage(
+    panel: Annotated[Path, typer.Option(exists=True)],
+    membership: Annotated[Path, typer.Option(exists=True)],
+    security_master: Annotated[Path | None, typer.Option(exists=True)] = None,
+) -> None:
+    """Audit PIT membership to daily-panel coverage without computing strategy performance."""
+    payload = audit_membership_price_join(
+        _read_table(panel),
+        _read_table(membership),
+        _read_table(security_master) if security_master else None,
+    )
+    _print_json(payload)
+    if (
+        payload["unmapped_membership_security_ids"]
+        or payload["member_dates_lacking_price_rows"]
+        or payload["member_dates_lacking_raw_close"]
+        or payload["member_dates_lacking_total_return"]
+    ):
         raise typer.Exit(1)
 
 

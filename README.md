@@ -67,6 +67,10 @@ uv run drift-replication data validate --panel data/normalized/dev-snapshot/dail
 uv run drift-replication data inspect data/normalized/dev-snapshot
 uv run drift-replication data certify data/normalized/dev-snapshot --experiment-id P3
 uv run drift-replication data wisesheets-capabilities
+uv run drift-replication data discover-sources
+uv run drift-replication data audit-coverage \
+  --panel data/normalized/dev-snapshot/daily_panel.parquet \
+  --membership data/normalized/dev-snapshot/membership.parquet
 ```
 
 Normalized snapshots are immutable by default and include `manifest.json`,
@@ -109,6 +113,11 @@ The API key must be supplied only through `WISESHEETS_API_KEY` and is never stor
 No WiseSheets network endpoint is implemented yet because authoritative API endpoint/schema
 documentation is not present in this repository. The current CLI reports WiseSheets market-data
 capabilities as `unverified` rather than guessing.
+
+Phase 2A source discovery is documented in `docs/REAL_DATA_SOURCES.md`. No real P3-capable snapshot
+has been certified yet; CRSP/WRDS or Norgate are the current documented defensible paths if licensed,
+while WiseSheets remains a local-export/provisional source until its raw-close and API semantics are
+proved.
 
 ## Architecture
 
