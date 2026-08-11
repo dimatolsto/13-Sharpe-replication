@@ -116,6 +116,22 @@ This route may support a provisional P0/P1/P2 input later, but P3 requires much 
 identity, terminal-return, and member-day coverage evidence than Wikipedia plus ticker-centric Yahoo
 can provide by default.
 
+Phase 2C tested this route with real acquisitions. The result was useful but negative:
+
+- Wikipedia supplied 737 in-window seed events and a 503-row current anchor, but no events were
+  primary/archived/fallback verified in that run and timing remained `UNKNOWN`.
+- Yahoo/yfinance completed 728 of 933 planned alias rows and failed 205, largely former/delisted or
+  unresolved historical names.
+- Yahoo `Close` failed empirical nominal raw-close certification with 489 `likely_back_adjusted`
+  split classifications out of 616 checks.
+- A separate split-deadjusted `reconstructed_nominal_close` candidate improved split-audit behavior
+  but remains uncertified until independent historical-price validation is available.
+- Corrected terminal diagnostics classify the 503 active right-edge constituents as
+  `right_censored_active`; former-security member-day coverage remains materially incomplete.
+
+The open-source path is therefore not currently P2/P3 certifiable without a separate nominal-close
+source, primary event verification, stable identifiers, and former-security price resolution.
+
 ## Identifier Handling
 
 CRSP PERMNO is the preferred stable security identifier when available. Norgate `assetid` is the

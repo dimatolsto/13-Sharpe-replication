@@ -12,6 +12,7 @@ from .backtest import run_backtest
 from .config import load_experiment, load_strategy
 from .data.acquisition import write_raw_acquisition_metadata
 from .data.certification import certify_for_experiment, certify_report
+from .data.identity import stable_security_id_from_event
 from .data.io import read_table, write_json
 from .data.join_audit import audit_membership_price_join
 from .data.membership_reconstruction import reconstruct_membership_from_change_events
@@ -29,12 +30,20 @@ from .data.sp500_events import (
     event_ledger_to_change_events,
     gap_register_from_events,
     merge_event_evidence,
+    parse_wikipedia_current_constituents,
     parse_wikipedia_file,
     read_event_ledger,
     write_event_ledger,
 )
 from .data.trading_calendar import TradingCalendar
-from .data.validation import validate_dataset
+from .data.validation import (
+    audit_reconstructed_nominal_close,
+    split_diagnostic_context,
+    split_diagnostic_summary,
+    stratified_split_diagnostic_sample,
+    terminal_return_audit,
+    validate_dataset,
+)
 from .data.wisesheets_crosscheck import (
     compare_wisesheets_to_yahoo,
     read_wisesheets_export,
@@ -227,6 +236,7 @@ def data_acquire_wikipedia_events(
     raw_dir: Annotated[Path, typer.Option()],
     source_url: Annotated[str, typer.Option()] = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
     timeout: Annotated[float, typer.Option()] = 30.0,
+    user_agent: Annotated[str, typer.Option()] = "sharpe-replication/0.1 forensic-data-acquisition",
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Fetch the Wikipedia S&P 500 page as raw seed input and parse its change table."""
@@ -236,7 +246,7 @@ def data_acquire_wikipedia_events(
     html_path = raw_dir / "wikipedia_sp500.html"
     if html_path.exists() and not force:
         raise typer.BadParameter(f"Raw Wikipedia snapshot already exists: {html_path}")
-    response = httpx.get(source_url, timeout=timeout, follow_redirects=True)
+    response = httpx.get(source_url, timeout=timeout, follow_redirects=True, headers={"User-Agent": user_agent})
     response.raise_for_status()
     html_path.write_text(response.text, encoding="utf-8")
     metadata = write_raw_acquisition_metadata(
@@ -267,6 +277,33 @@ def data_parse_wikipedia_events(
     if out is not None:
         write_event_ledger(out, events)
     _print_json({"events": len(events), "wikipedia_seed_events": len(events), "out": str(out) if out else None})
+
+
+@data_app.command("parse-wikipedia-anchor")
+def data_parse_wikipedia_anchor(
+    html: Annotated[Path, typer.Option(exists=True)],
+    source_url: Annotated[str, typer.Option()] = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+    out: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Parse the frozen Wikipedia current table as an unverified provisional anchor."""
+    anchor = parse_wikipedia_current_constituents(html.read_text(encoding="utf-8"), source_url=source_url)
+    anchor["security_id"] = [
+        stable_security_id_from_event(row.ticker, row.company_name)
+        for row in anchor.itertuples(index=False)
+    ]
+    columns = ["security_id", *[column for column in anchor.columns if column != "security_id"]]
+    anchor = anchor[columns]
+    if out is not None:
+        _write_table(out, anchor)
+    _print_json(
+        {
+            "anchor_rows": len(anchor),
+            "unique_tickers": int(anchor["ticker"].nunique()),
+            "verification_status": "UNVERIFIED",
+            "source_tier": "WIKIPEDIA_ANCHOR",
+            "out": str(out) if out else None,
+        }
+    )
 
 
 @data_app.command("verify-sp500-events")
@@ -312,6 +349,7 @@ def data_reconstruct_membership(
     end_date: Annotated[str, typer.Option()],
     out: Annotated[Path, typer.Option()],
     include_unverified: Annotated[bool, typer.Option()] = False,
+    provisional_security_ids: Annotated[bool, typer.Option()] = False,
     metadata_out: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """Reconstruct PIT membership from event ledger plus an explicit anchor set."""
@@ -320,6 +358,9 @@ def data_reconstruct_membership(
         read_event_ledger(events),
         calendar=calendar,
         include_unverified=include_unverified,
+        provisional_security_ids=provisional_security_ids,
+        start_date=min(pd.Timestamp(start_date).normalize(), pd.Timestamp(anchor_date).normalize()),
+        end_date=max(pd.Timestamp(end_date).normalize(), pd.Timestamp(anchor_date).normalize()),
     )
     result = reconstruct_membership_from_change_events(
         change_events,
@@ -356,6 +397,8 @@ def data_acquire_yahoo(
     max_symbols: Annotated[int, typer.Option()] = 0,
     retry_attempts: Annotated[int, typer.Option(min=1)] = 3,
     retry_sleep: Annotated[float, typer.Option(min=0.0)] = 1.0,
+    symbol_sleep: Annotated[float, typer.Option(min=0.0)] = 0.0,
+    retry_permanent: Annotated[bool, typer.Option()] = False,
     dry_run: Annotated[bool, typer.Option()] = False,
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
@@ -365,7 +408,7 @@ def data_acquire_yahoo(
     through mocks/local fixtures; live network acquisition is operator-run only.
     """
     state_frame = read_yahoo_state(state)
-    symbols = pending_yahoo_symbols(state_frame)
+    symbols = pending_yahoo_symbols(state_frame, include_permanent=retry_permanent)
     if max_symbols > 0:
         symbols = symbols[:max_symbols]
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -409,6 +452,8 @@ def data_acquire_yahoo(
                 time.sleep(retry_sleep * (2**attempt))
         state_frame = record_yahoo_result(state_frame, provider_symbol=symbol, result=result)
         write_yahoo_state(state, state_frame)
+        if symbol_sleep and symbol != symbols[-1]:
+            time.sleep(symbol_sleep)
 
     metadata = write_raw_acquisition_metadata(
         raw_dir,
@@ -420,7 +465,7 @@ def data_acquire_yahoo(
         response_count=acquired + skipped_cached,
         limitations=[
             "Yahoo is ticker-centric and may not resolve delisted or renamed historical securities.",
-            "Close remains candidate raw_close until empirical split audits verify nominal semantics.",
+            "Close is preserved as yahoo_close and is not promoted to certified raw_close.",
         ],
         extra_metadata={"provider_metadata": yahoo_provider_metadata()},
         force=True,
@@ -453,6 +498,63 @@ def data_audit_yahoo(
     _print_json(yahoo_candidate_audit(_read_table(panel), _read_table(corporate_actions)))
 
 
+@data_app.command("split-diagnostics")
+def data_split_diagnostics(
+    panel: Annotated[Path, typer.Option(exists=True)],
+    corporate_actions: Annotated[Path, typer.Option(exists=True)],
+    sample_out: Annotated[Path | None, typer.Option()] = None,
+    summary_out: Annotated[Path | None, typer.Option()] = None,
+    price_column: Annotated[str, typer.Option()] = "raw_close",
+    per_class: Annotated[int, typer.Option(min=1)] = 20,
+) -> None:
+    """Write stratified split diagnostics without changing raw-close certification rules."""
+    context = split_diagnostic_context(
+        _read_table(panel),
+        _read_table(corporate_actions),
+        price_column=price_column,
+    )
+    sample = stratified_split_diagnostic_sample(context, per_class=per_class)
+    summary = split_diagnostic_summary(context)
+    if sample_out is not None:
+        _write_table(sample_out, sample)
+    if summary_out is not None:
+        write_json(summary_out, summary)
+    _print_json(
+        {
+            "events": len(context),
+            "sample_rows": len(sample),
+            "classifications": summary.get("by_classification", {}),
+            "sample_out": str(sample_out) if sample_out else None,
+            "summary_out": str(summary_out) if summary_out else None,
+        }
+    )
+
+
+@data_app.command("audit-reconstructed-nominal-close")
+def data_audit_reconstructed_nominal_close(
+    panel: Annotated[Path, typer.Option(exists=True)],
+    corporate_actions: Annotated[Path, typer.Option(exists=True)],
+    audit_out: Annotated[Path | None, typer.Option()] = None,
+    close_column: Annotated[str, typer.Option()] = "raw_close",
+) -> None:
+    """Audit a separate split-deadjusted nominal-close candidate."""
+    audit = audit_reconstructed_nominal_close(
+        _read_table(panel),
+        _read_table(corporate_actions),
+        close_column=close_column,
+    )
+    if audit_out is not None:
+        _write_table(audit_out, audit)
+    counts = audit["classification"].value_counts().to_dict() if len(audit) else {}
+    _print_json(
+        {
+            "events": len(audit),
+            "classifications": {str(k): int(v) for k, v in counts.items()},
+            "audit_out": str(audit_out) if audit_out else None,
+        }
+    )
+
+
 @data_app.command("compare-wisesheets")
 def data_compare_wisesheets(
     yahoo_panel: Annotated[Path, typer.Option(exists=True)],
@@ -466,9 +568,14 @@ def data_compare_wisesheets(
 @data_app.command("wisesheets-test-pack")
 def data_wisesheets_test_pack(
     out: Annotated[Path, typer.Option()],
+    split_diagnostics: Annotated[Path | None, typer.Option(exists=True)] = None,
+    dividend_audit: Annotated[Path | None, typer.Option(exists=True)] = None,
 ) -> None:
     """Write a compact WiseSheets export request pack for data-semantics cross-checks."""
-    pack = requested_wisesheets_test_pack()
+    pack = requested_wisesheets_test_pack(
+        split_diagnostics=_read_table(split_diagnostics) if split_diagnostics else None,
+        dividend_audit=_read_table(dividend_audit) if dividend_audit else None,
+    )
     _write_table(out, pack)
     _print_json({"out": str(out), "rows": len(pack)})
 
@@ -581,6 +688,36 @@ def data_audit_coverage(
         or payload["member_dates_lacking_total_return"]
     ):
         raise typer.Exit(1)
+
+
+@data_app.command("audit-terminal")
+def data_audit_terminal(
+    panel: Annotated[Path, typer.Option(exists=True)],
+    membership: Annotated[Path, typer.Option(exists=True)],
+    corporate_actions: Annotated[Path | None, typer.Option(exists=True)] = None,
+    out: Annotated[Path | None, typer.Option()] = None,
+    as_of: Annotated[str | None, typer.Option(help="Acquisition timestamp; naive values are UTC.")] = None,
+    latest_available_provider_session: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    """Classify terminal coverage using XNYS completed-session and provider-availability edges."""
+    audit = terminal_return_audit(
+        _read_table(panel),
+        _read_table(membership),
+        _read_table(corporate_actions) if corporate_actions else None,
+        as_of=as_of,
+        latest_available_provider_session=latest_available_provider_session,
+    )
+    if out is not None:
+        _write_table(out, audit)
+    status_counts = audit["terminal_status"].value_counts().to_dict() if len(audit) else {}
+    _print_json(
+        {
+            "rows": len(audit),
+            "terminal_status_counts": {str(k): int(v) for k, v in status_counts.items()},
+            "blocking_risks": int(audit["blocking_risk"].sum()) if len(audit) else 0,
+            "out": str(out) if out else None,
+        }
+    )
 
 
 @data_app.command("inspect")

@@ -49,6 +49,12 @@ uv run drift-replication data wisesheets-test-pack \
 The pack covers ordinary days, major splits, dividends, a ticker rename case, and a former
 constituent/delisting check. It is for source-semantics validation only, not strategy selection.
 
+Phase 2C did not find a local WiseSheets export in the expected project locations. After the real
+Yahoo split audit, the requested pack was expanded to 58 rows at
+`reports/generated/phase2c/wisesheets_requested_crosscheck_updated.csv`. It prioritizes likely
+back-adjusted Yahoo split events, Yahoo nominal-consistent classifications, ambiguous split events,
+dividend anomalies, and ordinary controls. The cross-check remains pending user export.
+
 ## Comparison
 
 After exporting the requested fields:

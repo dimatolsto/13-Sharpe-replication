@@ -110,6 +110,12 @@ def yahoo_symbol_from_reported(value: Any) -> str:
     return normalize_reported_symbol(value).replace(".", "-")
 
 
+def provisional_security_id_from_symbol_name(symbol: Any, company_name: Any, source: str = "wiki") -> str:
+    ticker = normalize_reported_symbol(symbol) or "UNKNOWN"
+    name = re.sub(r"[^A-Z0-9]+", "-", str(company_name).upper()).strip("-")[:48] or "UNKNOWN"
+    return f"{source}:{ticker}:{name}"
+
+
 def _date_or_none(value: Any) -> pd.Timestamp | None:
     text = _clean_text(value)
     if not text or text.lower() in {"nan", "none"}:
@@ -125,6 +131,13 @@ def _table_looks_like_changes(table: list[list[_Cell]]) -> bool:
     joined_rows = [" ".join(cell.text.lower() for cell in row) for row in table[:5]]
     joined = " ".join(joined_rows)
     return "date" in joined and "added" in joined and "removed" in joined
+
+
+def _table_looks_like_current_constituents(table: list[list[_Cell]]) -> bool:
+    if not table:
+        return False
+    headers = {cell.text.lower() for cell in table[0]}
+    return {"symbol", "security"}.issubset(headers) and any("gics" in value for value in headers)
 
 
 def _absolute_wikipedia_url(href: str) -> str:
@@ -257,6 +270,61 @@ def parse_wikipedia_change_table(html: str, *, source_url: str) -> pd.DataFrame:
     if not rows:
         raise ValueError("Wikipedia changes table contained no parseable add/remove events")
     return normalize_event_ledger(pd.DataFrame(rows))
+
+
+def parse_wikipedia_current_constituents(html: str, *, source_url: str) -> pd.DataFrame:
+    """Parse Wikipedia's current S&P 500 table as a provisional reconstruction anchor."""
+
+    parser = _TableParser()
+    parser.feed(html)
+    candidates = [table for table in parser.tables if _table_looks_like_current_constituents(table)]
+    if not candidates:
+        raise ValueError("Could not find a current S&P 500 constituent table with Symbol/Security/GICS headers")
+    table = candidates[0]
+    headers = [cell.text for cell in table[0]]
+    rows: list[dict[str, Any]] = []
+    for raw_index, cells in enumerate(table[1:], start=1):
+        values = {headers[index]: cells[index] for index in range(min(len(headers), len(cells)))}
+        symbol_cell = values.get("Symbol")
+        security_cell = values.get("Security")
+        if symbol_cell is None or security_cell is None:
+            raise ValueError(f"Malformed Wikipedia constituent row {raw_index}: missing Symbol/Security cells")
+        symbol = normalize_reported_symbol(symbol_cell.text)
+        company = _clean_text(security_cell.text)
+        if not symbol or not company:
+            raise ValueError(f"Malformed Wikipedia constituent row {raw_index}: blank Symbol/Security value")
+        date_added = _date_or_none(values.get("Date added").text if values.get("Date added") else "")
+        reference_urls = [
+            _absolute_wikipedia_url(link)
+            for cell in cells
+            for link in cell.links
+        ]
+        rows.append(
+            {
+                "ticker": symbol,
+                "company_name": company,
+                "gics_sector": _clean_text(values.get("GICS Sector").text if values.get("GICS Sector") else ""),
+                "gics_sub_industry": _clean_text(
+                    values.get("GICS Sub-Industry").text if values.get("GICS Sub-Industry") else ""
+                ),
+                "headquarters_location": _clean_text(
+                    values.get("Headquarters Location").text if values.get("Headquarters Location") else ""
+                ),
+                "date_added": date_added,
+                "cik": _clean_text(values.get("CIK").text if values.get("CIK") else ""),
+                "founded": _clean_text(values.get("Founded").text if values.get("Founded") else ""),
+                "source_url": source_url,
+                "source_tier": "WIKIPEDIA_ANCHOR",
+                "verification_status": "UNVERIFIED",
+                "wikipedia_row_id": f"wikipedia-current-row-{raw_index:05d}",
+                "wikipedia_reference_urls": ";".join(dict.fromkeys(reference_urls)),
+            }
+        )
+    if not rows:
+        raise ValueError("Wikipedia current constituent table contained no parseable rows")
+    out = pd.DataFrame(rows)
+    out["date_added"] = pd.to_datetime(out["date_added"], errors="coerce").dt.normalize()
+    return out.sort_values(["ticker", "company_name"]).reset_index(drop=True)
 
 
 def normalize_event_ledger(events: pd.DataFrame) -> pd.DataFrame:
@@ -438,13 +506,26 @@ def event_ledger_to_change_events(
     *,
     calendar: TradingCalendar | None = None,
     include_unverified: bool = False,
+    provisional_security_ids: bool = False,
+    start_date: str | pd.Timestamp | None = None,
+    end_date: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     ledger = normalize_event_ledger(events)
     if not include_unverified:
         ledger = ledger[~ledger["verification_status"].eq("UNVERIFIED")]
+    if start_date is not None:
+        ledger = ledger[ledger["effective_date"] >= pd.Timestamp(start_date).normalize()]
+    if end_date is not None:
+        ledger = ledger[ledger["effective_date"] <= pd.Timestamp(end_date).normalize()]
     cal = calendar or TradingCalendar.xnys()
     rows = []
     for row in ledger.itertuples(index=False):
+        security_id = row.source_symbol or row.ticker_as_reported
+        if provisional_security_ids:
+            security_id = provisional_security_id_from_symbol_name(
+                row.source_symbol or row.ticker_as_reported,
+                row.source_security_name or row.company_name,
+            )
         if row.action == "ADD":
             change_date = first_membership_session(row.effective_date, row.effective_session, cal)
             action = "addition"
@@ -454,7 +535,7 @@ def event_ledger_to_change_events(
         rows.append(
             {
                 "effective_date": change_date,
-                "security_id": row.source_symbol or row.ticker_as_reported,
+                "security_id": security_id,
                 "action": action,
                 "announcement_date": row.announcement_date,
                 "source_event_id": row.event_id,

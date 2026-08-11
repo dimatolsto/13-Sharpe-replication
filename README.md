@@ -71,6 +71,9 @@ uv run drift-replication data discover-sources
 uv run drift-replication data parse-wikipedia-events \
   --html data/raw/sp500_membership/wikipedia/<id>/wikipedia_sp500.html \
   --out data/raw/sp500_membership/wikipedia/<id>/wikipedia_events.csv
+uv run drift-replication data parse-wikipedia-anchor \
+  --html data/raw/sp500_membership/wikipedia/<id>/wikipedia_sp500.html \
+  --out reports/generated/phase2c/wikipedia_current_anchor.csv
 uv run drift-replication data event-completeness --events data/raw/.../wikipedia_events.csv
 uv run drift-replication data reconstruct-membership \
   --events data/raw/.../verified_events.csv \
@@ -79,11 +82,13 @@ uv run drift-replication data reconstruct-membership \
   --start-date 2004-01-01 \
   --end-date 2026-08-11 \
   --out data/raw/.../membership.csv \
-  --metadata-out data/raw/.../membership_metadata.json
+  --metadata-out data/raw/.../membership_metadata.json \
+  --provisional-security-ids
 uv run drift-replication data acquire-yahoo \
   --state data/raw/yahoo/<id>/state.csv \
   --raw-dir data/raw/yahoo/<id> \
-  --start-date 2003-10-01
+  --start-date 2003-10-01 \
+  --symbol-sleep 0.1
 uv run drift-replication data audit-coverage \
   --panel data/normalized/dev-snapshot/daily_panel.parquet \
   --membership data/normalized/dev-snapshot/membership.parquet
@@ -139,6 +144,14 @@ Phase 2B open-source reconstruction tooling is documented in
 `docs/OPEN_SOURCE_RECONSTRUCTION.md` and `docs/WISESHEETS_EXPORT_WORKFLOW.md`. Wikipedia is treated
 only as an event seed, Yahoo Finance is an acquisition source only, and WiseSheets exports are
 cross-checks only. P4/P5 performance has not been run.
+
+Phase 2C executed the real open-source reconstruction run and is documented in
+`docs/PHASE2C_REAL_RECONSTRUCTION.md`. The run produced real Wikipedia/Yahoo acquisition artifacts
+and audit reports, but no certified immutable snapshot: Yahoo `Close` failed nominal raw-close split
+certification, all in-window Wikipedia seed events remain unverified/UNKNOWN timing, and
+former-security member-day coverage has material gaps. A separate `reconstructed_nominal_close`
+candidate exists for follow-up validation, but it is not certified. P0-P5 performance still has not
+been run.
 
 ## Architecture
 

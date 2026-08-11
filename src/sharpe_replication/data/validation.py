@@ -15,6 +15,7 @@ from .normalize import (
 )
 from .schema import Severity, ValidationReport
 from .security_master import validate_security_master
+from .trading_calendar import latest_completed_exchange_session
 
 
 def _known_security_ids(*frames: pd.DataFrame | None) -> set[str]:
@@ -229,6 +230,167 @@ def audit_split_raw_close(
     return pd.DataFrame(rows, columns=columns)
 
 
+def reconstruct_nominal_close_from_splits(
+    panel: pd.DataFrame,
+    corporate_actions: pd.DataFrame | None,
+    *,
+    close_column: str = "raw_close",
+    output_column: str = "reconstructed_nominal_close",
+) -> pd.DataFrame:
+    """Create a separate candidate as-traded nominal close by reversing later splits.
+
+    The input close is assumed to be expressed on the latest share basis.  For a split event with
+    ratio `shares_after / shares_before`, all observations strictly before the split event date are
+    multiplied by that ratio.  The split date itself is treated as the first post-split session,
+    matching Yahoo's daily split event convention; unknown before-open/after-close timing remains a
+    provenance limitation for certification.
+    """
+
+    p = normalize_daily_panel(panel).copy()
+    if close_column not in p.columns:
+        raise ValueError(f"panel missing close_column={close_column!r}")
+    p[output_column] = pd.to_numeric(p[close_column], errors="raise")
+    p["split_adjustment_multiplier"] = 1.0
+    if corporate_actions is None or len(corporate_actions) == 0:
+        return p
+    actions = normalize_corporate_actions(corporate_actions)
+    splits = actions[
+        actions["event_type"].eq("split")
+        & actions["split_factor"].notna()
+        & (actions["split_factor"] > 0)
+    ].sort_values(["security_id", "date"])
+    for split in splits.itertuples(index=False):
+        mask = p["security_id"].eq(split.security_id) & (p["date"] < split.date)
+        p.loc[mask, output_column] = p.loc[mask, output_column] * float(split.split_factor)
+        p.loc[mask, "split_adjustment_multiplier"] = (
+            p.loc[mask, "split_adjustment_multiplier"] * float(split.split_factor)
+        )
+    return p
+
+
+def audit_reconstructed_nominal_close(
+    panel: pd.DataFrame,
+    corporate_actions: pd.DataFrame | None,
+    *,
+    close_column: str = "raw_close",
+) -> pd.DataFrame:
+    """Run the split audit against the separate reconstructed nominal-close candidate."""
+
+    reconstructed = reconstruct_nominal_close_from_splits(
+        panel,
+        corporate_actions,
+        close_column=close_column,
+    )
+    audit_panel = reconstructed.copy()
+    audit_panel["raw_close"] = audit_panel["reconstructed_nominal_close"]
+    return audit_split_raw_close(audit_panel, corporate_actions)
+
+
+def split_diagnostic_context(
+    panel: pd.DataFrame,
+    corporate_actions: pd.DataFrame | None,
+    *,
+    price_column: str = "raw_close",
+) -> pd.DataFrame:
+    """Return split-audit rows enriched with adjacent Close/Adj Close observations."""
+
+    p = normalize_daily_panel(panel).copy()
+    if price_column != "raw_close":
+        if price_column not in p.columns:
+            raise ValueError(f"panel missing price_column={price_column!r}")
+        audit_panel = p.copy()
+        audit_panel["raw_close"] = audit_panel[price_column]
+    else:
+        audit_panel = p
+    audit = audit_split_raw_close(audit_panel, corporate_actions)
+    rows: list[dict[str, Any]] = []
+    for item in audit.itertuples(index=False):
+        block = p[p["security_id"].eq(item.security_id)].sort_values("date").reset_index(drop=True)
+        before = block[block["date"] < item.split_date].tail(2)
+        day = block[block["date"].eq(item.split_date)].tail(1)
+        after = block[block["date"] > item.split_date].head(1)
+
+        def _value(frame: pd.DataFrame, column: str, offset: int) -> float | None:
+            if frame.empty or column not in frame.columns or len(frame) <= abs(offset) - 1:
+                return None
+            value = frame[column].iloc[offset]
+            return None if pd.isna(value) else float(value)
+
+        factor = float(item.declared_split_factor)
+        if item.classification == "likely_back_adjusted":
+            reason = "observed Close ratio is near 1.0 rather than declared split factor"
+        elif item.classification == "consistent_with_nominal" and factor <= 1.25:
+            reason = "small split ratio falls within current broad tolerance; needs independent confirmation"
+        elif item.classification == "consistent_with_nominal":
+            reason = "observed Close ratio is near declared split factor"
+        elif item.classification == "ambiguous":
+            reason = "observed Close ratio is neither near 1.0 nor near declared split factor"
+        else:
+            reason = "adjacent price observations are insufficient"
+        rows.append(
+            {
+                **item._asdict(),
+                "split_year": pd.Timestamp(item.split_date).year,
+                "split_direction": "reverse" if factor < 1.0 else "forward",
+                "close_m2": _value(before, price_column, 0),
+                "close_m1": _value(before, price_column, -1),
+                "close_0": _value(day, price_column, -1),
+                "close_p1": _value(after, price_column, 0),
+                "adj_close_m2": _value(before, "adjusted_close", 0),
+                "adj_close_m1": _value(before, "adjusted_close", -1),
+                "adj_close_0": _value(day, "adjusted_close", -1),
+                "adj_close_p1": _value(after, "adjusted_close", 0),
+                "has_previous_observation": not before.empty,
+                "has_split_day_observation": not day.empty,
+                "has_next_observation": not after.empty,
+                "classification_reason": reason,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def stratified_split_diagnostic_sample(
+    split_context: pd.DataFrame,
+    *,
+    per_class: int = 20,
+) -> pd.DataFrame:
+    if split_context.empty:
+        return split_context.copy()
+    return (
+        split_context.sort_values(["classification", "split_date", "security_id"])
+        .groupby("classification", group_keys=False)
+        .head(per_class)
+        .reset_index(drop=True)
+    )
+
+
+def split_diagnostic_summary(split_context: pd.DataFrame) -> dict[str, Any]:
+    if split_context.empty:
+        return {}
+    context = split_context.copy()
+    context["split_ratio"] = context["declared_split_factor"].round(6)
+    context["adjacent_observation_state"] = np.select(
+        [
+            context["has_previous_observation"] & context["has_split_day_observation"] & context["has_next_observation"],
+            context["has_previous_observation"] & context["has_split_day_observation"],
+        ],
+        ["previous_event_next", "previous_event_only"],
+        default="insufficient",
+    )
+
+    def _counts(frame: pd.DataFrame, columns: list[str]) -> list[dict[str, Any]]:
+        return frame.groupby(columns).size().reset_index(name="count").to_dict(orient="records")
+
+    return {
+        "by_classification": {str(k): int(v) for k, v in context["classification"].value_counts().items()},
+        "by_split_ratio": _counts(context, ["classification", "split_ratio"]),
+        "by_direction": _counts(context, ["classification", "split_direction"]),
+        "by_year": _counts(context, ["split_year", "classification"]),
+        "by_security": _counts(context, ["security_id", "classification"])[:200],
+        "by_adjacent_observations": _counts(context, ["classification", "adjacent_observation_state"]),
+    }
+
+
 def validate_split_and_return_semantics(
     panel: pd.DataFrame,
     corporate_actions: pd.DataFrame | None,
@@ -368,57 +530,166 @@ def validate_survivorship(
     return report
 
 
+def _terminal_event_keys(corporate_actions: pd.DataFrame | None) -> set[tuple[str, pd.Timestamp]]:
+    if corporate_actions is None:
+        return set()
+    actions = normalize_corporate_actions(corporate_actions)
+    terminal = actions["event_type"].isin({"delisting", "merger_acquisition"})
+    return set(zip(actions.loc[terminal, "security_id"], actions.loc[terminal, "date"], strict=False))
+
+
+def terminal_return_audit(
+    panel: pd.DataFrame,
+    membership: pd.DataFrame,
+    corporate_actions: pd.DataFrame | None = None,
+    *,
+    as_of: str | pd.Timestamp | None = None,
+    latest_available_provider_session: str | pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Classify terminal coverage using explicit exchange and provider right edges."""
+
+    p = normalize_daily_panel(panel)
+    m = normalize_membership(membership)
+    event_keys = _terminal_event_keys(corporate_actions)
+    exchange_edge = latest_completed_exchange_session(as_of)
+    provider_edge = (
+        pd.Timestamp(latest_available_provider_session).normalize()
+        if latest_available_provider_session is not None
+        else p["date"].max()
+    )
+    audit_edge = min(exchange_edge, provider_edge) if pd.notna(provider_edge) else exchange_edge
+    security_ids = sorted(set(m["security_id"].astype(str)) | set(p["security_id"].astype(str)))
+    rows: list[dict[str, Any]] = []
+    for security_id in security_ids:
+        spells = m[m["security_id"].eq(security_id)]
+        price_block = p[p["security_id"].eq(security_id)].sort_values("date")
+        finite_exits = spells["membership_end"].dropna() if not spells.empty else pd.Series(dtype="datetime64[ns]")
+        active_at_audit_edge = False
+        active_after_last = False
+        last_membership_session = pd.NaT
+        if not spells.empty:
+            active_at_audit_edge = (
+                (spells["membership_start"] <= audit_edge)
+                & (spells["membership_end"].isna() | (spells["membership_end"] >= audit_edge))
+            ).any()
+            last_membership_session = audit_edge if active_at_audit_edge else finite_exits.max()
+
+        if price_block.empty:
+            status = "unmapped_no_yahoo_price"
+            blocking = bool(
+                not spells.empty
+                and (
+                    (spells["membership_start"] <= audit_edge)
+                    & (spells["membership_end"].isna() | (spells["membership_end"] >= spells["membership_start"]))
+                ).any()
+            )
+            rows.append(
+                {
+                    "security_id": security_id,
+                    "last_membership_date": None if pd.isna(last_membership_session) else last_membership_session.date().isoformat(),
+                    "last_price_date": None,
+                    "last_return_date": None,
+                    "final_return_present": False,
+                    "active_at_audit_edge": active_at_audit_edge,
+                    "latest_completed_exchange_session": exchange_edge.date().isoformat(),
+                    "latest_available_provider_session": provider_edge.date().isoformat() if pd.notna(provider_edge) else None,
+                    "audit_end_session": audit_edge.date().isoformat(),
+                    "terminal_status": status,
+                    "blocking_risk": blocking,
+                }
+            )
+            continue
+
+        last_row = price_block.tail(1).iloc[0]
+        last_date = pd.Timestamp(last_row["date"]).normalize()
+        return_dates = price_block.loc[price_block["total_return"].notna(), "date"]
+        last_return_date = return_dates.max() if len(return_dates) else pd.NaT
+        final_return_present = pd.notna(last_row["total_return"])
+        if not spells.empty:
+            bounded_after_last = spells.copy()
+            bounded_after_last["bounded_end"] = bounded_after_last["membership_end"].fillna(audit_edge)
+            bounded_after_last["bounded_end"] = bounded_after_last["bounded_end"].where(
+                bounded_after_last["bounded_end"] <= audit_edge,
+                audit_edge,
+            )
+            active_after_last = (
+                (bounded_after_last["membership_start"] <= audit_edge)
+                & (bounded_after_last["bounded_end"] > last_date)
+                & (last_date < audit_edge)
+            ).any()
+
+        if active_at_audit_edge and last_date >= audit_edge:
+            status = "right_censored_active"
+            blocking = False
+        elif active_after_last:
+            status = "disappears_while_member"
+            blocking = True
+        elif not finite_exits.empty and last_date >= finite_exits.max():
+            status = "price_ends_after_membership"
+            blocking = False
+        elif not finite_exits.empty and (security_id, finite_exits.max()) in event_keys:
+            status = "acquisition_or_delisting_explained"
+            blocking = False
+        elif pd.isna(last_membership_session):
+            status = "price_without_membership"
+            blocking = False
+        else:
+            status = "unresolved"
+            blocking = bool(last_date < audit_edge)
+        if not final_return_present:
+            blocking = True
+        rows.append(
+            {
+                "security_id": security_id,
+                "last_membership_date": None if pd.isna(last_membership_session) else last_membership_session.date().isoformat(),
+                "last_price_date": last_date.date().isoformat(),
+                "last_return_date": None if pd.isna(last_return_date) else pd.Timestamp(last_return_date).date().isoformat(),
+                "final_return_present": bool(final_return_present),
+                "active_at_audit_edge": bool(active_at_audit_edge),
+                "latest_completed_exchange_session": exchange_edge.date().isoformat(),
+                "latest_available_provider_session": provider_edge.date().isoformat() if pd.notna(provider_edge) else None,
+                "audit_end_session": audit_edge.date().isoformat(),
+                "terminal_status": status,
+                "blocking_risk": bool(blocking),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def validate_missing_terminal_returns(
     panel: pd.DataFrame,
     membership: pd.DataFrame | None,
     corporate_actions: pd.DataFrame | None,
     report: ValidationReport | None = None,
+    *,
+    as_of: str | pd.Timestamp | None = None,
+    latest_available_provider_session: str | pd.Timestamp | None = None,
 ) -> ValidationReport:
     report = report or ValidationReport()
-    p = normalize_daily_panel(panel)
     if membership is None:
         report.sections["delisting_diagnostics"] = {"available": False}
         return report
+    p = normalize_daily_panel(panel)
     m = normalize_membership(membership)
-    actions = normalize_corporate_actions(corporate_actions) if corporate_actions is not None else None
-    event_keys = set()
-    if actions is not None:
-        terminal = actions["event_type"].isin({"delisting", "merger_acquisition"})
-        event_keys = set(zip(actions.loc[terminal, "security_id"], actions.loc[terminal, "date"], strict=False))
-
-    global_last = p["date"].max()
-    issue_rows: list[dict[str, Any]] = []
-    missing_terminal_return = 0
-    disappearance_while_member = 0
+    terminal = terminal_return_audit(
+        p,
+        m,
+        corporate_actions,
+        as_of=as_of,
+        latest_available_provider_session=latest_available_provider_session,
+    )
+    disappearance_while_member = int(terminal["terminal_status"].eq("disappears_while_member").sum())
+    missing_terminal_return = int(
+        terminal["last_price_date"].notna().sum()
+        - terminal.loc[terminal["last_price_date"].notna(), "final_return_present"].sum()
+    )
+    event_keys = _terminal_event_keys(corporate_actions)
     missing_terminal_event = 0
-    for security_id, block in p.groupby("security_id"):
-        last_row = block.sort_values("date").tail(1).iloc[0]
-        last_date = last_row["date"]
-        spells = m[m["security_id"].eq(security_id)]
-        if spells.empty:
+    for security_id, spells in m.groupby("security_id"):
+        price_block = p[p["security_id"].eq(security_id)]
+        if price_block.empty:
             continue
-        active_after_last = (
-            (spells["membership_start"] <= last_date)
-            & (spells["membership_end"].isna() | (spells["membership_end"] > last_date))
-        ).any()
-        if active_after_last and last_date < global_last:
-            disappearance_while_member += 1
-            issue_rows.append(
-                {
-                    "security_id": security_id,
-                    "last_price_date": last_date.date().isoformat(),
-                    "classification": "security_disappears_while_member",
-                }
-            )
-        if pd.isna(last_row["total_return"]):
-            missing_terminal_return += 1
-            issue_rows.append(
-                {
-                    "security_id": security_id,
-                    "last_price_date": last_date.date().isoformat(),
-                    "classification": "missing_terminal_return",
-                }
-            )
+        last_date = price_block["date"].max()
         finite_exits = spells["membership_end"].dropna()
         if not finite_exits.empty:
             latest_exit = finite_exits.max()
@@ -448,11 +719,31 @@ def validate_missing_terminal_returns(
             dataset="corporate_actions",
             row_count=missing_terminal_event,
         )
+    issue_rows = []
+    for row in terminal[terminal["terminal_status"].eq("disappears_while_member")].to_dict(orient="records"):
+        issue_rows.append(
+            {
+                "security_id": row["security_id"],
+                "last_price_date": row["last_price_date"],
+                "classification": "security_disappears_while_member",
+            }
+        )
+    for row in terminal[(terminal["last_price_date"].notna()) & (~terminal["final_return_present"])].to_dict(orient="records"):
+        issue_rows.append(
+            {
+                "security_id": row["security_id"],
+                "last_price_date": row["last_price_date"],
+                "classification": "missing_terminal_return",
+            }
+        )
+    status_counts = terminal["terminal_status"].value_counts().to_dict() if len(terminal) else {}
     report.sections["delisting_diagnostics"] = {
         "issues": issue_rows,
         "security_disappearance_while_member": disappearance_while_member,
         "missing_terminal_return": missing_terminal_return,
         "finite_exits_without_terminal_event": missing_terminal_event,
+        "right_censored_active": int(status_counts.get("right_censored_active", 0)),
+        "terminal_status_counts": {str(k): int(v) for k, v in status_counts.items()},
     }
     return report
 

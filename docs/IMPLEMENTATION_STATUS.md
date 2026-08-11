@@ -99,6 +99,9 @@
   historical S&P 500 market dataset.
 - Phase 2A prepares source selection and acquisition validation, but still requires licensed CRSP,
   Norgate, or verified provider exports before a P3-certified real snapshot can be frozen.
+- Phase 2C executed the open-source path and found current blockers for P2/P3: Yahoo `Close` is not
+  a defensible nominal raw-close source, Wikipedia seed events remain unverified, and
+  former-security price/terminal coverage is materially incomplete.
 
 ## Phase 2B — open-source reconstruction pipeline (implemented)
 
@@ -122,3 +125,35 @@
   reconstruction, Yahoo normalization/audit, WiseSheets comparison, and Yahoo acquisition planning.
 - No real immutable open-source snapshot was certified in this implementation pass.
 - No P0-P5 strategy performance was run in Phase 2B.
+
+## Phase 2C — real open-source reconstruction run (executed)
+
+- Fetched and froze a real Wikipedia S&P 500 seed snapshot on 2026-08-11.
+  - Parsed 772 seed events total, with 737 events from 2004-01-01 through 2026-08-11.
+  - Parsed a 503-row current Wikipedia constituent anchor as `WIKIPEDIA_ANCHOR` /
+    `UNVERIFIED`.
+- Built a provisional 2004-present membership reconstruction from the current anchor plus Wikipedia
+  seed events.
+  - 869 membership spells and 859 provisional security IDs.
+  - XNYS target-session member counts range from 503 to 574 with median 543.
+  - All in-window transitions remain unverified and `UNKNOWN` effective-session timing.
+- Planned Yahoo acquisition from the union of provisional historical member identities, not only
+  current constituents.
+  - 933 planned alias rows / 857 unique Yahoo symbols.
+  - 728 completed alias downloads and 205 permanent/no-data failures.
+  - Candidate Yahoo panel contains 3,646,880 rows; raw files remain gitignored.
+- Ran real split, return, dividend, join, terminal, and survivorship audits.
+  - Yahoo `Close` failed nominal raw-close certification: 489 of 616 split checks were
+    `likely_back_adjusted`.
+  - A separate `reconstructed_nominal_close` candidate was implemented by reversing subsequent Yahoo
+    split factors; its split audit improved to 603 of 616 nominal-consistent checks, but independent
+    cross-source validation is still pending.
+  - Provider-edge member-day join found 640,008 member dates lacking price rows in the provisional
+    reconstruction.
+  - Corrected terminal audit now treats the 503 active current constituents at the acquisition right
+    edge as `right_censored_active`, not `disappears_while_member`; true disappearance-while-member
+    count is 0, with 190 unmapped/no-price securities still unresolved.
+- No immutable normalized real snapshot was frozen because the evidence does not support P2/P3
+  certification.
+- See `docs/PHASE2C_REAL_RECONSTRUCTION.md` for detailed counts and local generated report paths.
+- No P0-P5 strategy performance was run in Phase 2C.

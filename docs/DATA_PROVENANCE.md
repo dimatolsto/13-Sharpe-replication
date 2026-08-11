@@ -102,14 +102,28 @@ repair=False
 actions=True
 ```
 
-`Close` is retained separately from `Adj Close`. `Close` is candidate raw close until empirical split
-audits classify it as nominal. Candidate total returns from `Adj Close` are recorded as
+`Close` is retained separately from `Adj Close` as `yahoo_close`; it is not promoted into
+`raw_close`. Candidate total returns from `Adj Close` are recorded as
 `yahoo_adjusted_close` and remain uncertified until split, dividend, and no-action diagnostics pass.
 Raw Yahoo acquisition metadata records the pinned yfinance package version and the exact download
 settings.
 
 Per-symbol acquisition state files must preserve failed and partial symbols. Delisted/former
 constituents are not dropped merely because Yahoo cannot resolve them.
+
+Phase 2C provenance note: the real yfinance 1.5.1 CSV output included a second ticker-name header
+row when a single-symbol MultiIndex frame was serialized. The Yahoo parser treats that row as
+metadata and drops it before date normalization. This does not fill or repair any price/return row.
+
+Phase 2C also established that Yahoo `Close` from the real acquisition is not a verified nominal
+historical close source. Split auditing classified most usable split events as `likely_back_adjusted`,
+so any future snapshot that uses Yahoo must keep `Close` as a failed candidate or obtain another
+nominal-close source.
+
+The separate Phase 2C `reconstructed_nominal_close` candidate reverses later Yahoo stock-split
+factors into earlier Yahoo `Close` observations. It preserves Yahoo `Close` unchanged, records the
+split-adjustment multiplier, and remains uncertified until an independent source such as a
+WiseSheets export supports the reconstructed historical prices.
 
 ## Events And Delistings
 
@@ -119,3 +133,7 @@ a capability limitation, not evidence that no event happened.
 The Phase 1 pipeline does not invent delisting returns. It reports missing terminal returns, security
 disappearance while still marked as a member, and finite membership exits that lack an explicit
 terminal delisting/acquisition event.
+
+Terminal audits use both the latest completed XNYS exchange session and the latest provider session
+actually returned by acquisition. Active securities at the provider right edge are classified as
+`right_censored_active`; an unfinished current daily bar is not treated as a missing terminal return.

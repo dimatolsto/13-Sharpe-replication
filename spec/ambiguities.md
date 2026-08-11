@@ -67,3 +67,14 @@ The implementation must not silently resolve these items.
 20. **Yahoo adjusted-close returns.** `Adj Close` percentage returns are a candidate corporate-action
     series only. They are not certified total returns until split, dividend, no-action, and terminal
     diagnostics pass.
+21. **Yahoo close in Phase 2C.** The real Phase 2C Yahoo acquisition showed that `Close` is not
+    reliable nominal historical close for this project: 489 of 616 split checks classified it as
+    `likely_back_adjusted`. Future work must not reinterpret that field as certified `raw_close`
+    without new source evidence and a new split audit.
+22. **Reconstructed nominal close candidate.** Reversing subsequent Yahoo split factors into prior
+    Yahoo `Close` observations is an offline reconstruction of historical as-traded prices, not a
+    predictive strategy input. The Phase 2C `reconstructed_nominal_close` field remains a candidate
+    until independent historical observations validate it.
+23. **Current-session right edge.** Data audits must distinguish the latest completed XNYS exchange
+    session from the latest provider session actually returned. Active constituents at that right edge
+    are `right_censored_active`; an unfinished current daily bar is not a terminal disappearance.
