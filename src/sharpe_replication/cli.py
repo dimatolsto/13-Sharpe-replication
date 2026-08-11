@@ -24,6 +24,7 @@ from .data.normalize import (
     normalize_security_master,
 )
 from .data.phase2d_membership import write_phase2d_reports
+from .data.phase2e_snapshots import write_phase2e_reports
 from .data.snapshot import hash_snapshot, inspect_snapshot, write_snapshot
 from .data.source_discovery import source_discovery_report
 from .data.sp500_events import (
@@ -409,6 +410,43 @@ def data_phase2d_membership_report(
         max_source_fetches=max_source_fetches,
         source_sleep_seconds=source_sleep_seconds,
         force_sources=force_sources,
+    )
+    _print_json(summary)
+
+
+@data_app.command("phase2e-snapshot-report")
+def data_phase2e_snapshot_report(
+    events: Annotated[Path, typer.Option(exists=True)],
+    anchor: Annotated[Path, typer.Option(exists=True)],
+    phase2d_dir: Annotated[Path, typer.Option(exists=True)] = Path("reports/generated/phase2d"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase2e"),
+    snapshot_cache_dir: Annotated[Path, typer.Option()] = Path("data/raw/sp500_membership/phase2e_snapshot_cache"),
+    identity_resolutions: Annotated[Path | None, typer.Option()] = None,
+    yahoo_state: Annotated[Path | None, typer.Option(exists=True)] = None,
+    start_date: Annotated[str, typer.Option()] = "2004-01-01",
+    anchor_date: Annotated[str, typer.Option()] = "2026-08-11",
+    end_date: Annotated[str, typer.Option()] = "2026-08-11",
+    max_snapshot_downloads: Annotated[int, typer.Option(min=0)] = 0,
+    snapshot_sleep_seconds: Annotated[float, typer.Option(min=0.0)] = 0.25,
+    force_snapshots: Annotated[bool, typer.Option()] = False,
+    snapshot_timeout: Annotated[float, typer.Option(min=1.0)] = 20.0,
+) -> None:
+    """Generate Phase 2E snapshot-triangulation reports without running strategy performance."""
+    summary = write_phase2e_reports(
+        events_path=events,
+        anchor_path=anchor,
+        phase2d_dir=phase2d_dir,
+        out_dir=out_dir,
+        snapshot_cache_dir=snapshot_cache_dir,
+        identity_resolutions_path=identity_resolutions,
+        yahoo_state_path=yahoo_state,
+        start_date=start_date,
+        anchor_date=anchor_date,
+        end_date=end_date,
+        max_snapshot_downloads=max_snapshot_downloads,
+        snapshot_sleep_seconds=snapshot_sleep_seconds,
+        force_snapshots=force_snapshots,
+        snapshot_timeout=snapshot_timeout,
     )
     _print_json(summary)
 

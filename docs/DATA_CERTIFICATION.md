@@ -87,6 +87,23 @@ total-return certification. The membership component remains `FAIL` after Phase 
 The Phase 2D result therefore cannot promote P3. P2 also remains `FAIL` from Phase 2C raw-close
 evidence, so overall P3 remains `FAIL` even if later membership work improves.
 
+Phase 2E evaluated the membership component through independent historical snapshot checkpoints
+instead of attempting to verify every unresolved event. It compared 30 checkpoints across secondary
+snapshot families and reviewed the known Phase 2D identity/backward/reentry problem sets. No
+lineage repair was certified because the snapshot evidence did not yet provide primary/archive or
+strong enough contemporaneous support for any merge or event correction. The membership component
+therefore remains `FAIL` after Phase 2E because:
+
+- The reconstructed count range is unchanged at 503 to 574 with median 543.
+- All 64 Phase 2D identity-mismatch failures remain unresolved.
+- All 12 backward reconstruction failures remain unresolved.
+- The 10 provisional reentries remain unconfirmed.
+- The 2004-2006 period has only secondary snapshot/checkpoint support and lacks primary or
+  archived-primary full constituent evidence.
+- The residual gap register contains 112 P3-blocking membership gaps.
+
+The Phase 2E result does not change P2 raw-close certification. Overall P3 remains `FAIL`.
+
 ## Split Audit
 
 For each known N-for-1 split, the split audit compares the previous nominal close to the split-day

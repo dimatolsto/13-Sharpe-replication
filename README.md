@@ -162,6 +162,16 @@ evidence. The reconstructed member-count range remains 503 to 574 with median 54
 diagnosed, rather than mechanically repaired, the dominant provisional identity-alias failures.
 Membership certification remains `FAIL`, and P2/P3 remain blocked. No P0-P5 performance was run.
 
+Phase 2E is documented in `docs/PHASE2E_SNAPSHOT_TRIANGULATION.md`. It adds a data-only snapshot
+triangulation command that compares the provisional PIT reconstruction with bounded historical
+constituent checkpoints from Wikipedia-derived snapshots, iShares IVV holdings snapshots, and
+independent secondary ticker-interval data. The pass acquired 19 raw snapshot artifacts and compared
+30 checkpoints, but applied zero identity repairs because the discrepancies did not yet meet the
+evidence standard for lineage changes. Membership remains `FAIL`: the count range is still 503 to
+574 with median 543, all 64 Phase 2D identity mismatches remain unresolved, all 12 backward
+reconstruction failures remain unresolved, and the 2004-2006 period remains a P3-blocking gap. No
+Yahoo full redownload or P0-P5 performance was run.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,

@@ -146,6 +146,31 @@ The phase also writes machine-readable identity lineages and reconstruction-cons
 Those reports are evidence registers, not hidden code overrides. They do not merge securities, force
 counts to 500, or change strategy inputs.
 
+## Phase 2E Snapshot Provenance
+
+Phase 2E adds historical constituent snapshots as cross-check evidence, not authority. The command
+`drift-replication data phase2e-snapshot-report` writes local reports under
+`reports/generated/phase2e/` and caches bounded raw artifacts under
+`data/raw/sp500_membership/phase2e_snapshot_cache/`.
+
+Each fetched snapshot artifact records source ID, canonical URL, retrieval timestamp, HTTP status,
+SHA-256, parser name/version, and known limitations. The evaluated source categories are:
+
+- Wikipedia constituent-table revisions, parsed by deterministic revision fixtures but not live
+  crawled by default.
+- iShares IVV holdings snapshots from the riazarbi public archive, treated as ETF-proxy secondary
+  snapshots with CUSIP, ISIN, and SEDOL enrichment where present.
+- The fja05680 historical S&P 500 ticker-interval dataset, treated as secondary ticker-only evidence.
+- riazarbi Wikipedia and tidyquant snapshots, treated as secondary snapshots.
+- Official S&P constituent snapshots, which were evaluated as the preferred source but no public
+  historical full-snapshot feed was acquired in this bounded pass.
+
+Snapshot comparisons map source rows through date-aware internal security IDs before set
+comparison. Rows that cannot be mapped, map ambiguously, or disagree across sources remain explicit
+gap records. Phase 2E does not treat iShares holdings as official index membership, does not repair
+membership from secondary snapshot agreement alone, and does not use Yahoo price availability to
+resolve identity.
+
 ## Events And Delistings
 
 Corporate actions are retained as event rows when the source provides them. Missing event coverage is

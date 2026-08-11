@@ -46,6 +46,7 @@ uv run drift-replication data parse-wikipedia-anchor --html data/raw/.../wikiped
 uv run drift-replication data verify-sp500-events --seed-events seed.csv --evidence-events evidence.csv --out verified.csv
 uv run drift-replication data event-completeness --events verified.csv --gaps-out gaps.csv
 uv run drift-replication data reconstruct-membership --events verified.csv --anchor-members anchor.csv --anchor-date 2026-08-11 --start-date 2004-01-01 --end-date 2026-08-11 --out membership.csv --metadata-out membership_metadata.json --provisional-security-ids
+uv run drift-replication data phase2e-snapshot-report --events data/raw/.../wikipedia_events.csv --anchor reports/generated/phase2c/wikipedia_current_anchor.csv --phase2d-dir reports/generated/phase2d --identity-resolutions spec/phase2e_identity_resolutions.csv --out-dir reports/generated/phase2e
 uv run drift-replication data plan-yahoo --aliases yahoo_aliases.csv --state-out yahoo_state.csv
 uv run drift-replication data acquire-yahoo --state yahoo_state.csv --raw-dir data/raw/yahoo/<id> --start-date 2003-10-01 --symbol-sleep 0.1
 uv run drift-replication data normalize-yahoo --raw yahoo_symbol.csv --security-id sid --ticker AAPL --panel-out yahoo_panel.csv --actions-out yahoo_actions.csv
@@ -92,6 +93,25 @@ plan delta. Source artifacts fetched during bounded verification are cached unde
 `data/raw/sp500_membership/phase2d_source_cache/` with URL, retrieval time, SHA-256, and linked event
 metadata. Phase 2D found 14 primary-verified seed events and two additional 2004 secondary events,
 but membership remains uncertified because most events and identities remain unresolved.
+
+Phase 2E adds snapshot-triangulation reports under `reports/generated/phase2e/`:
+
+```bash
+uv run drift-replication data phase2e-snapshot-report \
+  --events data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_events.csv \
+  --anchor reports/generated/phase2c/wikipedia_current_anchor.csv \
+  --phase2d-dir reports/generated/phase2d \
+  --identity-resolutions spec/phase2e_identity_resolutions.csv \
+  --yahoo-state reports/generated/phase2c/yahoo_state.csv
+```
+
+The command is data-only. It evaluates historical constituent snapshots as cross-checks, maps rows
+through date-aware internal security IDs, rebuilds membership from scratch after any approved
+identity-resolution config rows, and writes set-difference, disagreement, error-interval,
+identity-mismatch, backward-failure, reentry, conservation, gap, certification, and Yahoo-plan-delta
+reports. Raw snapshot artifacts are cached under gitignored
+`data/raw/sp500_membership/phase2e_snapshot_cache/`. The current Phase 2E pass applied no approved
+lineage repairs, so the reconstructed membership remains uncertified.
 
 ## Daily Security Panel
 

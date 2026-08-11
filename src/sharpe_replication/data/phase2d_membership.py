@@ -553,16 +553,27 @@ def reconstruction_conservation_audit(
     anchor_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    resolved_by_event_id: dict[str, str] = {}
+    if {"event_id", "resolved_security_id"}.issubset(events.columns):
+        for row in events[["event_id", "resolved_security_id"]].itertuples(index=False):
+            security_id = _clean_text(row.resolved_security_id)
+            if security_id:
+                resolved_by_event_id[str(row.event_id)] = security_id
+
     ledger = normalize_event_ledger(events)
     start_ts = pd.Timestamp(start_date).normalize()
     anchor_ts = pd.Timestamp(anchor_date).normalize()
     end_ts = pd.Timestamp(end_date).normalize()
     ledger = ledger[(ledger["effective_date"] >= start_ts) & (ledger["effective_date"] <= anchor_ts)].copy()
+
+    def event_security_id(row: Any) -> str:
+        return resolved_by_event_id.get(str(row.event_id), _event_security_id(row))
+
     group_stats = _group_stats(ledger)
     duplicate_keys = _duplicate_event_keys(ledger)
     ids_by_group_action: dict[tuple[str, str], set[str]] = defaultdict(set)
     for row in ledger.itertuples(index=False):
-        ids_by_group_action[(row.replacement_group_id, row.action)].add(_event_security_id(row))
+        ids_by_group_action[(row.replacement_group_id, row.action)].add(event_security_id(row))
 
     records: list[dict[str, Any]] = []
     state = {str(member) for member in anchor_members}
@@ -571,7 +582,7 @@ def reconstruction_conservation_audit(
         ascending=[False, False, False, False],
     )
     for row in reverse_order.itertuples(index=False):
-        security_id = _event_security_id(row)
+        security_id = event_security_id(row)
         existed = security_id in state
         count_before = len(state)
         flags: list[str] = []
@@ -621,7 +632,7 @@ def reconstruction_conservation_audit(
     start_state = set(state)
     forward_order = ledger.sort_values(["effective_date", "replacement_group_id", "action", "event_id"])
     for row in forward_order.itertuples(index=False):
-        security_id = _event_security_id(row)
+        security_id = event_security_id(row)
         existed = security_id in state
         count_before = len(state)
         flags = []

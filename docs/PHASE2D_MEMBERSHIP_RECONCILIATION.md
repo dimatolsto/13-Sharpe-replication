@@ -155,3 +155,15 @@ Valid Phase 2D outcome: `FAIL`.
 The phase materially improved evidence visibility and primary verification counts, but material
 event, timing, identity, anchor, and 2004 completeness gaps remain. Wikipedia remains a discovery
 seed, not authority.
+
+## Phase 2E Follow-Up
+
+Phase 2E used historical snapshot triangulation to target the Phase 2D identity and reconstruction
+failures instead of attempting to verify the remaining events one by one. The follow-up compared
+30 checkpoints from secondary snapshot families and reviewed the 64 identity mismatches, 12 backward
+failures, and 10 provisional reentries identified here.
+
+The follow-up did not change the Phase 2D membership counts or certification. No identity merge or
+event correction was applied because the available snapshot evidence did not satisfy the repository's
+standard for lineage repair. The Phase 2D conservation diagnosis remains the operative explanation
+for the 503/543/574 count range.

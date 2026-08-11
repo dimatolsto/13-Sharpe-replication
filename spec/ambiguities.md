@@ -93,3 +93,17 @@ The implementation must not silently resolve these items.
 27. **Internal lineages are explicit but mostly provisional.** Phase 2D writes identity lineages and
     ambiguity registers, but CIK enrichment is issuer-level only and does not certify tradable
     security identity. Ticker/name similarity must remain insufficient for merging identities.
+28. **Historical snapshots are cross-checks.** Phase 2E compares Wikipedia-derived snapshots,
+    iShares IVV holdings snapshots, tidyquant snapshots, and independent ticker-interval data against
+    the reconstructed PIT universe. These sources localize disagreement but do not become authority
+    simply because they are dated snapshots.
+29. **ETF holdings are not official index membership.** iShares IVV holdings can enrich identifiers
+    such as CUSIP, ISIN, and SEDOL, but cash rows, non-equity rows, fund timing, tracking behavior,
+    and share-class representation can differ from official S&P membership.
+30. **Snapshot-date semantics are explicit.** A weekend, holiday, month-end, or after-close snapshot
+    must be mapped to a documented XNYS membership state before comparison. Silent date shifting can
+    create false set differences.
+31. **Phase 2E repair evidence remains insufficient.** The first snapshot-triangulation pass found
+    large disagreements and useful targeted research cases, but applied no identity repairs. Future
+    repairs must be represented in `spec/phase2e_identity_resolutions.csv` and supported by primary,
+    archived-primary, strong multi-source, or contemporaneous evidence.
