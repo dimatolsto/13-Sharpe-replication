@@ -177,3 +177,26 @@
   provisional, 232 identity ambiguity rows remain, and 2004 primary/archive evidence is incomplete.
 - P2 remains `FAIL` from Phase 2C raw-close findings, so overall P3 cannot pass.
 - No P0-P5 strategy performance was run in Phase 2D.
+
+## Phase 2E — snapshot triangulation and identity-repair targeting (executed)
+
+- Added `drift-replication data phase2e-snapshot-report`, a data-only command that evaluates
+  historical constituent snapshots as cross-checks against the reconstructed PIT universe.
+- Implemented deterministic Wikipedia revision constituent-table parsing, snapshot-source cataloging,
+  cached bounded CSV acquisition, iShares non-equity filtering, snapshot-date to XNYS session
+  mapping, identity-aware set comparison, multi-source disagreement reporting, error-interval
+  localization, identity-resolution config application, and rebuild-from-scratch membership output.
+- Evaluated six snapshot-source categories and acquired 19 bounded raw snapshot artifacts:
+  13 iShares IVV holdings snapshots, one independent fja05680 ticker-interval dataset expanded to
+  12 checkpoints, three Wikipedia-derived riazarbi snapshots, and two tidyquant-derived snapshots.
+- Compared 30 checkpoints. The median reconstructed count was 528, the median source snapshot count
+  was 503, the median symmetric difference was 91, and the worst symmetric difference was 231.
+- Reviewed the Phase 2D problem set using snapshot diagnostics: 64 identity mismatches, 12 backward
+  reconstruction failures, and 10 provisional reentries. No repair was applied because no case yet
+  satisfied the evidence standard for a tracked lineage change.
+- Rebuilt membership from scratch with the empty Phase 2E identity-resolution config. Counts remain
+  503 to 574 with median 543, with 869 spells and 859 reconstructed historical membership IDs.
+- Membership remains `FAIL`: 112 residual P3-blocking gaps remain, including unresolved identity
+  mismatches, backward failures, reentries, early-period gaps, and worst checkpoint differences.
+- P2 remains `FAIL` from Phase 2C raw-close findings, so overall P3 cannot pass.
+- No full Yahoo redownload and no P0-P5 strategy performance were run in Phase 2E.

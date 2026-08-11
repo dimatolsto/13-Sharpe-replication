@@ -134,6 +134,24 @@ The member-count range remains 503 to 574 with median 543, now explained primari
 identity alias mismatches and additions not present during backward inversion. Membership remains
 `FAIL`.
 
+Phase 2E changes the next membership workflow from broad event verification to snapshot
+triangulation. Historical constituent snapshots are used only as checkpoints to locate
+disagreements:
+
+- `wikipedia_revision`: deterministic constituent-table revision parser, secondary evidence.
+- `riazarbi_ishares`: iShares IVV holdings snapshots, secondary ETF-proxy evidence with CUSIP/ISIN
+  and SEDOL enrichment where present.
+- `fja05680_sp500`: independent historical ticker-interval dataset, secondary ticker-only evidence.
+- `riazarbi_wikipedia` and `riazarbi_tidyquant`: secondary public snapshot archives.
+- `sp_primary_snapshot`: preferred official category, but no public historical full-snapshot feed was
+  acquired in this bounded pass.
+
+The Phase 2E command compares snapshots by date-aware internal security IDs, not raw ticker strings,
+and writes set differences, multi-source disagreements, localized error intervals, targeted primary
+research cases, residual gaps, and Yahoo-plan deltas. The first pass compared 30 checkpoints and
+found substantial early/mid-period disagreement, but applied no identity repair because secondary
+snapshot evidence alone was not enough to merge provisional securities. Membership remains `FAIL`.
+
 ## Commands
 
 ```bash
@@ -153,6 +171,12 @@ uv run drift-replication data phase2d-membership-report \
   --anchor reports/generated/phase2c/wikipedia_current_anchor.csv \
   --wikipedia-html data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_sp500.html \
   --membership reports/generated/phase2c/provisional_membership.csv
+uv run drift-replication data phase2e-snapshot-report \
+  --events data/raw/sp500_membership/wikipedia/20260811_wikipedia_sp500/wikipedia_events.csv \
+  --anchor reports/generated/phase2c/wikipedia_current_anchor.csv \
+  --phase2d-dir reports/generated/phase2d \
+  --identity-resolutions spec/phase2e_identity_resolutions.csv \
+  --out-dir reports/generated/phase2e
 ```
 
 These commands are data/provenance tools. They do not compute strategy Sharpe, CAGR, wealth, or
