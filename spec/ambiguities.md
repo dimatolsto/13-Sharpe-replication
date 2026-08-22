@@ -150,3 +150,10 @@ The implementation must not silently resolve these items.
     `+50%/-50%` side normalization keeps gross exposure near 100% when both sides exist. A smaller
     regime-active name count shrinks position count and increases concentration, not gross exposure,
     unless an additional unreported exposure-scaling rule exists.
+40. **Phase 4 is a frozen signal-information test, not the certified P4 backtest.** Phase 4 regime
+    research reuses the Phase 3B paper-spec Yahoo Close VALUE input, prior-10-day reversal, and
+    previous-63-return strict-`>60%` regime on the frozen survivorship-biased panel. This is distinct
+    from `experiments/P4_continuous_oos.yaml`, whose historical-clean objective still requires
+    certified nominal price and point-in-time membership. Phase 4's null/mixed regime result must not
+    be described as a certified PIT strategy result or used to revise either experiment after the
+    fact.

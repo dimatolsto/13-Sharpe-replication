@@ -260,3 +260,31 @@
   frozen survivorship-biased Phase 3 inputs.
 - No strategy parameters were changed, no PIT membership work was resumed, no full Yahoo redownload
   occurred, and no P4/P5 runs were performed.
+
+## Phase 4 — incremental regime-edge information test (executed)
+
+- Added `drift-replication phase4-regime-edge`, a report-only study using the verified frozen Phase
+  3 panel and Phase 3B paper-spec prior-window signal helpers. Production Phase 3/3B specs were not
+  changed.
+- Predeclared 2010-2024 and the one-day information horizon as primary; retained corrected delayed
+  timing, fixed 2/5/10-day horizons, HAC lag 20, 2,000 block-bootstrap replications, minimum group
+  size 20, and 1,000 matched masks with seed 13.
+- Analyzed 1,755,295 eligible stock-days. REGIME=1 covered 205,643 (11.72%); median eligible and
+  active names per day were 470 and 48. The fixed interaction rule produced 3,124 usable dates.
+- The primary raw `BASE x REGIME` interaction was -0.000012 (HAC t-stat -0.07; 95% CI
+  [-0.000338, 0.000314]); standardized BASE was also effectively zero. Corrected delayed timing was
+  negative with t-stat -0.60.
+- In-regime Spearman IC was slightly higher, but the paired difference was insignificant. Pearson
+  IC, slope, and spread differences were negative. All 2/5/10-day interactions were negative.
+- The actual interaction was at the 48.6th percentile of equally broad random masks (one-sided
+  p=0.514). The continuous `BASE x UpFraction` interaction was significantly negative (t-stat
+  -3.39), and fixed-bin efficacy was not monotone.
+- Annual interaction and IC signs were positive in nine years and negative in six, without stable
+  magnitude. VALUE, REVERSAL, rank-outcome, transition, concentration, and supporting portfolio
+  checks did not establish a robust regime enhancement.
+- Phase 4 classification is `WEAK_OR_MIXED`: there is no compelling incremental predictive value
+  under this frozen causal implementation, but the small positive Spearman-IC diagnostic prevents a
+  stronger uniformly negative binary-regime conclusion.
+- No threshold, horizon, BASE weight, reversal definition, market dataset, PIT membership, or
+  favorable subperiod was selected from results. Generated artifacts remain local and gitignored
+  under `reports/generated/phase4/`.

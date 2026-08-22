@@ -200,6 +200,22 @@ documents internal fingerprint contradictions around active stock-days, position
 exposure normalization. No parameters were optimized, no PIT membership work was resumed, and no
 Yahoo redownload was run.
 
+Phase 4 is documented in `docs/PHASE4_REGIME_EDGE.md`. The project priority is now the narrower
+economic question of whether the frozen paper-spec drift regime improves BASE's predictive content,
+not further reverse engineering of Sharpe 13. The report-only command is:
+
+```bash
+uv run drift-replication phase4-regime-edge --out-dir reports/generated/phase4
+```
+
+On the 2010-2024 frozen Phase 3/3B panel, the primary one-day `BASE x REGIME` interaction was
+effectively zero (`-0.000012`, HAC t-stat `-0.07`), and corrected delayed timing was also negative.
+The actual regime's interaction statistic was at the 48.6th percentile of 1,000 equally broad
+random masks, while the continuous `BASE x UpFraction` diagnostic was significantly negative.
+Evidence is classified `WEAK_OR_MIXED`: in-regime Spearman IC was slightly higher but statistically
+uncertain, and the broader inference set does not show compelling incremental regime value. No
+parameters, Phase 3/3B specs, PIT membership, or market data were changed.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,

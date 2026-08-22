@@ -68,6 +68,7 @@ from .data.yahoo_provider import (
 )
 from .phase3_attribution import SURVIVORSHIP_LABEL, write_phase3_reports
 from .phase3b_reproduction_gap import PHASE3B_LABEL, write_phase3b_reports
+from .phase4_regime_edge import PHASE4_LABEL, write_phase4_reports
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
 app = typer.Typer(no_args_is_help=True)
@@ -262,6 +263,32 @@ def phase3b_reproduction_gap(
             "baseline_reproduced": summary["baseline_reproduction"]["matched"],
             "classification": summary["classification"],
             "production_phase3_legacy_finding": summary["production_phase3_legacy_finding"],
+        }
+    )
+
+
+@app.command("phase4-regime-edge")
+def phase4_regime_edge(
+    phase3_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase4"),
+) -> None:
+    """Test the frozen paper-spec drift regime's incremental predictive value."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase4_reports(
+        phase3_dir=phase3_dir,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "phase": PHASE4_LABEL,
+            "out_dir": str(out_dir),
+            "classification": summary["classification"],
+            "primary_beta3": summary["primary_interaction"]["mean"],
+            "primary_beta3_positive": summary["primary_interaction"]["mean"] > 0,
+            "full_yahoo_redownload": False,
         }
     )
 
