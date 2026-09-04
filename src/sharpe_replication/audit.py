@@ -30,7 +30,10 @@ def audit_experiment(exp: ExperimentConfig, ledger: pd.DataFrame, daily: pd.Data
     else:
         findings.append({"status": "PASS", "check": "timing", "detail": f"lag={exp.return_lag_sessions}"})
 
-    missing = int(ledger["total_return"].isna().sum()) if len(ledger) else 0
+    if "missing_weighted_return" in ledger.columns:
+        missing = int(ledger["missing_weighted_return"].sum()) if len(ledger) else 0
+    else:
+        missing = int((ledger["total_return"].isna() & ledger["signal_weight"].ne(0.0)).sum()) if len(ledger) else 0
     findings.append(
         {
             "status": "FAIL" if missing else "PASS",

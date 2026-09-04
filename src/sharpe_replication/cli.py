@@ -66,6 +66,9 @@ from .data.yahoo_provider import (
     yahoo_candidate_audit,
     yahoo_provider_metadata,
 )
+from .phase3_attribution import SURVIVORSHIP_LABEL, write_phase3_reports
+from .phase3b_reproduction_gap import PHASE3B_LABEL, write_phase3b_reports
+from .phase4_regime_edge import PHASE4_LABEL, write_phase4_reports
 from .providers.wisesheets import WiseSheetsCapabilityGate
 
 app = typer.Typer(no_args_is_help=True)
@@ -203,6 +206,91 @@ def run(
     }
     (out_dir / f"{exp.id}_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     _print_json(summary)
+
+
+@app.command("phase3-attribution")
+def phase3_attribution(
+    source_panel: Annotated[Path, typer.Option(exists=True)] = Path(
+        "reports/generated/phase2c/yahoo_source_panel.parquet"
+    ),
+    snapshot_rows: Annotated[Path, typer.Option()] = Path("reports/generated/phase2e/snapshot_rows_mapped.csv"),
+    fallback_anchor: Annotated[Path, typer.Option()] = Path("reports/generated/phase2c/wikipedia_current_anchor.csv"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+) -> None:
+    """Run Phase 3 paper-attribution experiments on the fixed survivorship-biased anchor."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase3_reports(
+        source_panel_path=source_panel,
+        snapshot_rows_path=snapshot_rows,
+        fallback_anchor_path=fallback_anchor,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "out_dir": str(out_dir),
+            "survivorship_bias_label": SURVIVORSHIP_LABEL,
+            "anchor": summary["anchor"],
+            "full_yahoo_redownload": summary["full_yahoo_redownload"],
+            "phase3_only_no_pit_membership_reconstruction": summary[
+                "phase3_only_no_pit_membership_reconstruction"
+            ],
+        }
+    )
+
+
+@app.command("phase3b-reproduction-gap")
+def phase3b_reproduction_gap(
+    phase3_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3b"),
+) -> None:
+    """Run Phase 3B reproduction-gap forensics against the frozen Phase 3 inputs."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase3b_reports(
+        phase3_dir=phase3_dir,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "phase": PHASE3B_LABEL,
+            "out_dir": str(out_dir),
+            "survivorship_bias_label": summary["survivorship_bias_label"],
+            "baseline_reproduced": summary["baseline_reproduction"]["matched"],
+            "classification": summary["classification"],
+            "production_phase3_legacy_finding": summary["production_phase3_legacy_finding"],
+        }
+    )
+
+
+@app.command("phase4-regime-edge")
+def phase4_regime_edge(
+    phase3_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase3"),
+    strategy_path: Annotated[Path, typer.Option()] = Path("spec/paper_strategy.yaml"),
+    out_dir: Annotated[Path, typer.Option()] = Path("reports/generated/phase4"),
+) -> None:
+    """Test the frozen paper-spec drift regime's incremental predictive value."""
+
+    strategy = load_strategy(strategy_path)
+    summary = write_phase4_reports(
+        phase3_dir=phase3_dir,
+        strategy=strategy,
+        out_dir=out_dir,
+    )
+    _print_json(
+        {
+            "phase": PHASE4_LABEL,
+            "out_dir": str(out_dir),
+            "classification": summary["classification"],
+            "primary_beta3": summary["primary_interaction"]["mean"],
+            "primary_beta3_positive": summary["primary_interaction"]["mean"] > 0,
+            "full_yahoo_redownload": False,
+        }
+    )
 
 
 @data_app.command("wisesheets-capabilities")

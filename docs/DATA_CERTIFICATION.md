@@ -104,6 +104,22 @@ therefore remains `FAIL` after Phase 2E because:
 
 The Phase 2E result does not change P2 raw-close certification. Overall P3 remains `FAIL`.
 
+Phase 3 is deliberately outside the P2/P3 certification path. It preserves the paper's acknowledged
+current-constituent survivorship bias and labels all outputs
+`SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE` so timing, nominal-price, scaling, accounting, and
+continuous-window effects can be isolated. The Phase 3 command uses:
+
+- Yahoo `Close` for R0/R1 VALUE only, still not certified nominal raw close.
+- `reconstructed_nominal_close` for R2/R3 VALUE only, still candidate-only pending independent
+  validation.
+- Yahoo `Adj Close` percentage change as the total-return candidate for reversal, regime, and P&L.
+- A fixed secondary 2025-12-22 iShares snapshot anchor, not official PIT membership.
+
+Phase 3 generated security-level ledgers that reconcile to portfolio daily returns within numerical
+tolerance and found zero missing weighted returns in the outputs, but that accounting result does
+not certify raw-close semantics or PIT membership. P2 remains `FAIL`, PIT membership remains
+deferred, and overall P3 remains unable to pass.
+
 ## Split Audit
 
 For each known N-for-1 split, the split audit compares the previous nominal close to the split-day

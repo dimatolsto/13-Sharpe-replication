@@ -171,6 +171,44 @@ gap records. Phase 2E does not treat iShares holdings as official index membersh
 membership from secondary snapshot agreement alone, and does not use Yahoo price availability to
 resolve identity.
 
+## Phase 3 Paper-Attribution Provenance
+
+Phase 3 intentionally uses a fixed current-constituent paper-like universe:
+
+```text
+SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE
+```
+
+This is a controlled attribution input, not point-in-time membership evidence. The command
+`drift-replication phase3-attribution` writes local artifacts under `reports/generated/phase3/`.
+Those files include `input_manifest.json`, `anchor_universe.csv`, copied experiment YAMLs, summary
+tables, daily returns, and security-level ledgers. The directory remains gitignored.
+
+The Phase 3 anchor is the cached riazarbi iShares IVV holdings snapshot dated 2025-12-22 because it
+is the nearest existing cached snapshot to the paper publication date, 2025-11-18. It has 503
+constituents and secondary ETF-proxy provenance. It is 34 days after publication and is not official
+S&P point-in-time membership. Five anchor symbols lacked cached Yahoo market data in the existing
+Phase 2C acquisition; they remain recorded in the anchor and are simply ineligible where data is
+unavailable.
+
+The Phase 3 market panel is built from `reports/generated/phase2c/yahoo_source_panel.parquet`.
+Duplicate Phase 2C provisional identities sharing the same Yahoo provider symbol/date are collapsed
+for Phase 3 so a current anchor symbol cannot create multiple simultaneous paper-like positions.
+No full Yahoo redownload is performed.
+
+Phase 3 price lineage remains explicit:
+
+- `yahoo_close` is Yahoo `Close`, used for R0/R1 VALUE only. It is not certified nominal raw close.
+- `yahoo_adj_close` is Yahoo `Adj Close`, used to compute `yahoo_adj_close_pct_change`.
+- `reconstructed_nominal_close` is rebuilt by applying the existing Phase 2C split de-adjustment to
+  Yahoo `Close`. It is used for R2/R3 VALUE only and remains a forensic candidate pending
+  independent cross-source validation.
+
+Security-level ledgers in Phase 3 are deterministic accounting artifacts with signal date, weight
+date, earned return date, return, contribution, turnover contribution, cost contribution, and net
+contribution. They are generated locally and not committed because they are large derived market
+data artifacts.
+
 ## Events And Delistings
 
 Corporate actions are retained as event rows when the source provides them. Missing event coverage is

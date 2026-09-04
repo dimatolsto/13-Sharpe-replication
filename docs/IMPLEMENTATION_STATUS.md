@@ -81,7 +81,7 @@
 - Apply raw nominal price / corporate-action-safe returns.
 - Apply PIT constituent universe.
 
-## Phase 3 — primary results
+## Later certified-result targets
 
 - P4: continuous 2009-2024 historical-clean result.
 - P5: post-publication result from 2025-11-19 onward.
@@ -200,3 +200,91 @@
   mismatches, backward failures, reentries, early-period gaps, and worst checkpoint differences.
 - P2 remains `FAIL` from Phase 2C raw-close findings, so overall P3 cannot pass.
 - No full Yahoo redownload and no P0-P5 strategy performance were run in Phase 2E.
+
+## Phase 3 — paper reproduction and methodological attribution (executed)
+
+- Added tracked Phase 3 experiment specs R0/R1/R2/R3 and the dedicated
+  `drift-replication phase3-attribution` command.
+- Intentionally froze a survivorship-biased current-constituent paper-like universe instead of
+  continuing PIT membership archaeology:
+  `SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE`.
+- Selected the closest existing cached paper-date anchor: riazarbi iShares IVV holdings snapshot
+  dated 2025-12-22, 34 days after the paper publication date, with 503 constituents. Cached Yahoo
+  market data exists for 498 of them; five anchor symbols remain unavailable in the existing cache.
+- Built a Phase 3 input panel from the existing Phase 2C Yahoo source panel without a full Yahoo
+  redownload. Yahoo `Close`, Yahoo `Adj Close`, and `reconstructed_nominal_close` remain separate.
+- R0/R1 differ only by timing (`lag=1` vs `lag=2`). R1/R2 differ only by the VALUE price
+  representation (Yahoo Close vs reconstructed nominal close). R3 is continuous 2010-2024,
+  unscaled, corrected timing, and survivorship-biased.
+- Added augmented security ledgers with signal date, weight date, earned return date, security
+  return, gross contribution, turnover contribution, cost contribution, and net contribution.
+  Generated ledgers reconcile to daily net returns within numerical tolerance.
+- Tightened portfolio accounting so missing returns are counted as blocking only when the security
+  has nonzero weight; missing weighted returns are not silently filled with zero.
+- Phase 3 results do not reproduce the paper. R0 paper-scaled Sharpe is 2.05, 0.43, and 0.74 for
+  2010, 2015, and 2020, versus paper values 16.89, 22.87, and 5.11. R2 unscaled selected-window
+  Sharpe is 0.40, and R3 continuous 2010-2024 Sharpe is 0.02.
+- Phase 3 does not change certification: P2 raw-close remains `FAIL`, reconstructed nominal close
+  remains candidate-only pending independent validation, PIT membership remains deferred, and overall
+  P3 cannot pass.
+
+## Phase 3B — reproduction-gap forensics (executed)
+
+- Added `drift-replication phase3b-reproduction-gap`, a report-only diagnostic command that verifies
+  the frozen Phase 3 input manifest and writes compact local artifacts under
+  `reports/generated/phase3b/`.
+- Reproduced the Phase 3 baseline exactly before running diagnostics: R0/R1/R2/R3 unscaled Sharpes
+  matched the Phase 3 summary to zero reported numerical error.
+- Audited the Phase 3 legacy R0 signal path and found that the existing rolling reversal and regime
+  windows end on signal date `t`. The paper's explicit regime equation excludes current return `t`,
+  so Phase 3B preserves exact legacy R0 as an invalid paper-equation fingerprint and separately
+  reports a paper-spec prior-window R0 variant.
+- Paper-spec R0 remains far below the paper: selected-window Sharpe is 0.65 combined, with 2010,
+  2015, and 2020 test Sharpes of 1.03, -0.17, and 0.92. Paper-reported test Sharpes are 16.89,
+  22.87, and 5.11.
+- Training-period Sharpes are also low under paper-spec R0: 0.80, 0.65, and 0.46 versus paper
+  training Sharpes of 19.42, 27.79, and 16.63. This points to a fundamental reproduction/data/spec
+  gap, not merely weak OOS walk-forward behavior.
+- Invalid diagnostics do not explain the gap. Current-day reversal reaches 0.98 selected-window
+  Sharpe, current-day regime reaches 0.46, lag0 contemporaneous return is strongly negative
+  (-7.75), and the strongest invalid future-regime offset reaches only 1.29.
+- Fingerprint audits show that the paper's stated 35% active stock-days cannot naturally coexist
+  with roughly 187 long plus 189 short positions if the algorithm trades only valid non-zero EDGE
+  names. Under paper-spec R0, selected-window positioned names average about 40, 32, and 60 in 2010,
+  2015, and 2020.
+- EDGE standardization alternatives were tested as interpretation diagnostics, not strategies. The
+  inactive-zero z-score variant trades hundreds of inactive names and still reaches only 0.97
+  selected-window Sharpe, while contradicting the paper's non-zero EDGE rule.
+- Phase 3B classification is `MULTIPLE: DATA_SOURCE_DIFFERENCE + PAPER_INTERNAL_INCONSISTENCY`.
+  This is not evidence of intent; it is a bounded forensic reproduction gap under the repository's
+  frozen survivorship-biased Phase 3 inputs.
+- No strategy parameters were changed, no PIT membership work was resumed, no full Yahoo redownload
+  occurred, and no P4/P5 runs were performed.
+
+## Phase 4 — incremental regime-edge information test (executed)
+
+- Added `drift-replication phase4-regime-edge`, a report-only study using the verified frozen Phase
+  3 panel and Phase 3B paper-spec prior-window signal helpers. Production Phase 3/3B specs were not
+  changed.
+- Predeclared 2010-2024 and the one-day information horizon as primary; retained corrected delayed
+  timing, fixed 2/5/10-day horizons, HAC lag 20, 2,000 block-bootstrap replications, minimum group
+  size 20, and 1,000 matched masks with seed 13.
+- Analyzed 1,755,295 eligible stock-days. REGIME=1 covered 205,643 (11.72%); median eligible and
+  active names per day were 470 and 48. The fixed interaction rule produced 3,124 usable dates.
+- The primary raw `BASE x REGIME` interaction was -0.000012 (HAC t-stat -0.07; 95% CI
+  [-0.000338, 0.000314]); standardized BASE was also effectively zero. Corrected delayed timing was
+  negative with t-stat -0.60.
+- In-regime Spearman IC was slightly higher, but the paired difference was insignificant. Pearson
+  IC, slope, and spread differences were negative. All 2/5/10-day interactions were negative.
+- The actual interaction was at the 48.6th percentile of equally broad random masks (one-sided
+  p=0.514). The continuous `BASE x UpFraction` interaction was significantly negative (t-stat
+  -3.39), and fixed-bin efficacy was not monotone.
+- Annual interaction and IC signs were positive in nine years and negative in six, without stable
+  magnitude. VALUE, REVERSAL, rank-outcome, transition, concentration, and supporting portfolio
+  checks did not establish a robust regime enhancement.
+- Phase 4 classification is `WEAK_OR_MIXED`: there is no compelling incremental predictive value
+  under this frozen causal implementation, but the small positive Spearman-IC diagnostic prevents a
+  stronger uniformly negative binary-regime conclusion.
+- No threshold, horizon, BASE weight, reversal definition, market dataset, PIT membership, or
+  favorable subperiod was selected from results. Generated artifacts remain local and gitignored
+  under `reports/generated/phase4/`.

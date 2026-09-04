@@ -172,6 +172,50 @@ evidence standard for lineage changes. Membership remains `FAIL`: the count rang
 reconstruction failures remain unresolved, and the 2004-2006 period remains a P3-blocking gap. No
 Yahoo full redownload or P0-P5 performance was run.
 
+Phase 3 is documented in `docs/PHASE3_PAPER_ATTRIBUTION.md`. It intentionally pauses PIT membership
+archaeology and preserves the paper's acknowledged current-constituent survivorship bias to isolate
+other methodology questions. The fixed anchor is a cached 2025-12-22 iShares IVV snapshot with 503
+rows, 34 days after the paper publication date; 498 anchor securities have cached Yahoo market data.
+The Phase 3 command is:
+
+```bash
+uv run drift-replication phase3-attribution --out-dir reports/generated/phase3
+```
+
+Every Phase 3 result is labeled `SURVIVORSHIP-BIASED PAPER-LIKE UNIVERSE` and is not an investable
+PIT simulation. Under favorable R0 paper-like assumptions, reproduced paper-scaled Sharpe was 2.05,
+0.43, and 0.74 in the 2010, 2015, and 2020 paper windows, far below the paper's 16.89, 22.87, and
+5.11. Corrected R2 selected-window Sharpe was 0.40 unscaled, and continuous corrected R3
+survivorship-biased Sharpe over 2010-2024 was 0.02. Phase 3 does not change Phase 2 P2/P3
+certification: Yahoo Close remains failed as nominal raw close, reconstructed nominal close remains
+candidate-only, and true PIT membership work remains deferred.
+
+Phase 3B is documented in `docs/PHASE3B_REPRODUCTION_GAP.md`. It keeps the Phase 3 data frozen and
+forensically audits why R0 still cannot reproduce the paper. The Phase 3 baseline reproduced exactly,
+but the exact legacy R0 path was found to include current-day reversal/regime windows; a paper-spec
+prior-window R0 is weaker, with selected-window Sharpe 0.65 versus paper values near 13 combined.
+Invalid leakage diagnostics, including lag0 return alignment, current-day reversal, current-day
+regime, and regime lead/lag scans, do not approach the paper's reported Sharpe. The pass also
+documents internal fingerprint contradictions around active stock-days, position counts, and gross
+exposure normalization. No parameters were optimized, no PIT membership work was resumed, and no
+Yahoo redownload was run.
+
+Phase 4 is documented in `docs/PHASE4_REGIME_EDGE.md`. The project priority is now the narrower
+economic question of whether the frozen paper-spec drift regime improves BASE's predictive content,
+not further reverse engineering of Sharpe 13. The report-only command is:
+
+```bash
+uv run drift-replication phase4-regime-edge --out-dir reports/generated/phase4
+```
+
+On the 2010-2024 frozen Phase 3/3B panel, the primary one-day `BASE x REGIME` interaction was
+effectively zero (`-0.000012`, HAC t-stat `-0.07`), and corrected delayed timing was also negative.
+The actual regime's interaction statistic was at the 48.6th percentile of 1,000 equally broad
+random masks, while the continuous `BASE x UpFraction` diagnostic was significantly negative.
+Evidence is classified `WEAK_OR_MIXED`: in-regime Spearman IC was slightly higher but statistically
+uncertain, and the broader inference set does not show compelling incremental regime value. No
+parameters, Phase 3/3B specs, PIT membership, or market data were changed.
+
 ## Architecture
 
 The calculation engine is deterministic. LLM agents are optional and limited to orchestration,
